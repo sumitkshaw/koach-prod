@@ -5,6 +5,11 @@ import Footer from '../../components/Footer';
 import Sidenav1 from './Sidenav1';
 import Navigation from '../../components/Navigation';
 import { getMentors } from '../../services/mentorService';
+import AlexBricks from '../../assets/AlexBricks.jpg';
+import DannyBlue from '../../assets/DannyBlue.jpg';
+import BiancaLorenzo from '../../assets/BiancaLorenzo.jpg';
+import JenniferSmith from '../../assets/Jennifer Smith.jpg';
+import BobbyRoy from '../../assets/BobbyRoy.jpg';
 
 function Listing() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,9 +38,9 @@ function Listing() {
         setApiLoading(true);
         setApiError(null);
         const data = await getMentors();
-        // Map Appwrite docs to local shape
+        // Map MongoDB docs to local shape (_id from MongoDB, $id from Appwrite)
         const mapped = (data.documents || []).map((doc) => ({
-          id: doc.$id,
+          id: doc._id || doc.$id,
           name: doc.name || 'Unknown Mentor',
           country: doc.country || '',
           role: doc.title || 'Mentor',
@@ -266,12 +271,13 @@ function Listing() {
     });
   }, [displayMentors, searchQuery, filters]);
 
-  // Navigate to mentor profile by ID
+  // Navigate to mentor profile by ID ($id = Appwrite doc id)
   const handleCardClick = (mentor) => {
-    if (mentor.id) {
-      navigate(`/listing/${mentor.id}`);
+    const id = mentor.$id || mentor.id;
+    if (id) {
+      navigate(`/listing/${id}`);
     } else {
-      navigate('/listing/jessica');
+      navigate('/listing');
     }
   };
 

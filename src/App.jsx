@@ -144,7 +144,7 @@ function AppContent() {
         <Route path="/dashboard_mentor/settings" element={<Settings1 />} />
 
         <Route path="/listing" element={<Listing />} />
-        <Route path="/listing/jessica" element={<Demo />} />
+        <Route path="/listing/:mentorId" element={<Demo />} />
 
         <Route path="/oauth-callback" element={<OAuthCallback />} />
 

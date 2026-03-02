@@ -1,13 +1,21 @@
-import { Star, Heart, Linkedin, Twitter, ChevronLeft, ChevronRight, Calendar, Briefcase, GraduationCap, MapPin, Mail, Phone, CheckCircle, X, User, Lock, Clock, CreditCard, ShieldCheck, MessageSquare, PenTool } from 'lucide-react';
+import { Star, Heart, Linkedin, Twitter, ChevronLeft, ChevronRight, Calendar, Briefcase, GraduationCap, MapPin, CheckCircle, X, User, Lock, Clock, CreditCard, ShieldCheck, MessageSquare, PenTool, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Footer from '../../components/Footer';
 import Navigation from '../../components/Navigation';
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from '../../utils/AuthContext';
+import { getMentorById } from '../../services/mentorService';
 
 function Demo() {
   const navigate = useNavigate();
+  const { mentorId } = useParams();
   const { isAuthenticated } = useAuth();
+
+  // ── Mentor data state ──────────────────────────────────────────────────────
+  const [mentor, setMentor] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [isFavorite, setIsFavorite] = useState(false);
@@ -36,58 +44,61 @@ function Demo() {
   });
 
   // Scroll to top
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    const handleRouteChange = () => window.scrollTo(0, 0);
-    window.addEventListener('popstate', handleRouteChange);
-    return () => window.removeEventListener('popstate', handleRouteChange);
-  }, []);
+  useEffect(() => { window.scrollTo(0, 0); }, []);
 
-  // --- Data ---
-  const mentor = {
-    name: 'Jessica Barney',
-    role: 'Marketing Head',
-    company: 'PWC',
-    location: 'Paris, France',
-    experienceSummary: '6+ years building, growing & scaling high-performing B2B Marketing teams',
-    rating: 4,
-    isNewMentor: true,
-    skills: ['Digital Marketing', 'Go To Market', 'Design', 'Growth Marketing', 'Strategy', 'Sales', 'Scaling Teams'],
-    about: "MSc Engineer by training. Marketeer by passion. I hold an MBA degree and have led Sales and Marketing both in SMBs and Multinational Corporations. My approach is data driven and customer centric, I'm fascinated by human behaviour and that informs my approach on every project.",
-    experience: [
-      {
-        title: 'Marketing Head',
-        company: 'PWC, USA',
-        period: 'June 2023 - Current',
-        description: 'Assisted in developing marketing strategies for social media campaigns. Analyzed consumer data to support targeted advertising efforts.'
-      },
-      {
-        title: 'Customer Service Representative',
-        company: 'DHL, Germany',
-        period: 'January 2022 - May 2023',
-        description: 'Responded to customer inquiries and resolved issues effectively. Trained new staff on company protocols and customer service excellence.'
+  // ── Fetch mentor from backend ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!mentorId || mentorId === 'jessica') {
+      navigate('/listing', { replace: true });
+      return;
+    }
+    const fetchMentor = async () => {
+      try {
+        setLoading(true);
+        const data = await getMentorById(mentorId);
+        // MongoDB returns _id (not Appwrite's $id), and native arrays (no JSON.parse needed)
+        setMentor({
+          id: data._id || data.$id,
+          name: data.name || 'Unknown Mentor',
+          role: data.title || 'Mentor',
+          company: data.company || '',
+          location: data.location || 'Remote',
+          country: data.country || '',
+          experienceSummary: data.bio || '',
+          rating: data.rating ?? 0,
+          hourlyRate: data.hourlyRate || 0,
+          yearsOfExperience: data.yearsOfExperience || 0,
+          isNewMentor: data.badge === 'New',
+          badge: data.badge || null,
+          skills: data.skills || [],
+          about: data.bio || 'No bio provided.',
+          avatarUrl: data.avatarUrl || null,
+          language: data.language || 'English',
+          industry: data.industry || '',
+          // MongoDB returns native arrays — no JSON parsing needed
+          experience: Array.isArray(data.experience) ? data.experience : [],
+          education: data.education || {},
+          reviews: Array.isArray(data.reviews) ? data.reviews : [],
+          linkedIn: data.linkedIn || null,
+          twitter: data.twitter || null,
+        });
+      } catch (err) {
+        console.error('[MentorProfile] fetch error:', err);
+        setFetchError('Could not load mentor profile.');
+      } finally {
+        setLoading(false);
       }
-    ],
-    education: {
-      degree: 'Master of Arts in Marketing',
-      institution: 'Northeastern University'
-    },
-    reviews: [
-      { name: 'Jane Doe', rating: 3, title: 'Supervisor at Company Name', comment: 'A dedicated team player with excellent problem-solving skills. Highly recommended.' },
-      { name: 'John Smith', rating: 4, title: 'Professor at University Name', comment: 'An outstanding student with a strong work ethic and leadership qualities.' }
-    ]
-  };
+    };
+    fetchMentor();
+  }, [mentorId, navigate]);
+
+  // Derived plan prices based on hourly rate
+  const plans = mentor ? [
+    { name: 'Basic Plan', price: Math.round((mentor.hourlyRate || 100) * 3), features: ['2 Calls a month', 'Resume Feedback', 'Unlimited Q&A via chat', 'Career guidance'], recommended: true },
+    { name: 'Pro Plan', price: Math.round((mentor.hourlyRate || 100) * 6), features: ['4 Calls a month', 'Resume Feedback', 'Unlimited Q&A via chat', 'Career guidance', 'Mock interviews', 'Priority response'], recommended: false },
+  ] : [];
 
   const timeSlots = ['8:00 AM', '10:00 AM', '12:00 PM', '2:00 PM', '4:00 PM', '6:00 PM'];
-
-  const plans = [
-    {
-      name: 'Basic Plan',
-      price: 330,
-      features: ['2 Calls a month', 'Resume Feedback', 'Unlimited Q&A via chat', 'Career guidance'],
-      recommended: true
-    }
-  ];
 
   // --- Calendar Logic ---
   const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
@@ -193,6 +204,36 @@ function Demo() {
     return v;
   };
 
+  // ── Loading & Error States ─────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+        <Navigation />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+            <p className="text-slate-500 font-medium text-lg">Loading mentor profile…</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  if (fetchError || !mentor) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+        <Navigation />
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4"><X className="w-8 h-8 text-red-400" /></div>
+            <h2 className="text-2xl font-bold text-slate-900 mb-2">Mentor not found</h2>
+            <p className="text-slate-500 font-medium mb-6">{fetchError || 'This profile does not exist.'}</p>
+            <button onClick={() => navigate('/listing')} className="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800">← Back to Mentors</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-dm relative overflow-x-hidden">
 
@@ -215,11 +256,17 @@ function Demo() {
                   {/* Profile Image */}
                   <div className="relative flex-shrink-0 mx-auto md:mx-0">
                     <div className="w-48 h-48 md:w-56 md:h-56 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-[2rem] p-1 shadow-lg">
-                      <img src="/jessica.png" alt="Profile" className="w-full h-full object-cover rounded-[1.8rem]" />
+                      {mentor.avatarUrl ? (
+                        <img src={mentor.avatarUrl} alt={mentor.name} className="w-full h-full object-cover rounded-[1.8rem]" />
+                      ) : (
+                        <div className="w-full h-full bg-gradient-to-br from-blue-200 to-indigo-300 rounded-[1.8rem] flex items-center justify-center">
+                          <span className="text-5xl font-bold text-white">{mentor.name.charAt(0)}</span>
+                        </div>
+                      )}
                     </div>
-                    {mentor.isNewMentor && (
+                    {mentor.badge && (
                       <div className="absolute -top-3 -right-3 bg-white text-blue-600 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide border border-blue-100 shadow-sm">
-                        New mentor
+                        {mentor.badge}
                       </div>
                     )}
                   </div>
@@ -243,9 +290,11 @@ function Demo() {
                         </button>
                       </div>
                     </div>
-                    <div className="flex items-center justify-center md:justify-start gap-4 text-slate-500 text-sm font-medium">
-                      <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg"><MapPin className="w-4 h-4" /><span>{mentor.location}</span></div>
-                      <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg"><Clock className="w-4 h-4" /><span>6+ Years Exp.</span></div>
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 text-slate-500 text-sm font-medium">
+                      {mentor.location && <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg"><MapPin className="w-4 h-4" /><span>{mentor.location}</span></div>}
+                      {mentor.yearsOfExperience > 0 && <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg"><Clock className="w-4 h-4" /><span>{mentor.yearsOfExperience}+ Years Exp.</span></div>}
+                      {mentor.language && <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg"><span>🌐</span><span>{mentor.language}</span></div>}
+                      {mentor.hourlyRate > 0 && <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-lg text-emerald-600 font-bold">${mentor.hourlyRate}/hr</div>}
                     </div>
                     <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
                       {mentor.skills.map((skill, index) => (
@@ -274,14 +323,14 @@ function Demo() {
                   <h2 className="text-2xl font-bold text-slate-900">Experience</h2>
                 </div>
                 <div className="space-y-8 relative before:absolute before:left-[19px] before:top-4 before:h-full before:w-0.5 before:bg-slate-100">
-                  {mentor.experience.map((exp, index) => (
+                  {mentor.experience && mentor.experience.length > 0 ? mentor.experience.map((exp, index) => (
                     <div key={index} className="relative pl-12">
                       <div className="absolute left-0 top-1.5 w-10 h-10 bg-white border-4 border-indigo-100 rounded-full flex items-center justify-center z-10"><div className="w-3 h-3 bg-indigo-600 rounded-full"></div></div>
                       <h3 className="text-xl font-bold text-slate-900">{exp.title}</h3>
                       <p className="text-blue-600 font-bold text-sm mb-2">{exp.company} <span className="text-slate-400 font-medium">•</span> {exp.period}</p>
                       <p className="text-slate-600 leading-relaxed">{exp.description}</p>
                     </div>
-                  ))}
+                  )) : <p className="text-slate-400 text-sm pl-12">No experience listed.</p>}
                 </div>
               </div>
 
@@ -492,8 +541,12 @@ function Demo() {
 
             {/* Left Column - Profile Sidebar */}
             <div className="w-full md:w-1/3 bg-slate-50 p-8 flex flex-col items-center text-center border-b md:border-b-0 md:border-r border-slate-100">
-              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full p-1 bg-white shadow-lg mb-4">
-                <img src="/jessica.png" alt="Profile" className="w-full h-full object-cover rounded-full" />
+              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden bg-gradient-to-br from-blue-200 to-indigo-300 mb-4 flex items-center justify-center">
+                {mentor.avatarUrl ? (
+                  <img src={mentor.avatarUrl} alt={mentor.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-4xl font-bold text-white">{mentor.name.charAt(0)}</span>
+                )}
               </div>
               <h3 className="text-xl font-bold text-slate-900">{mentor.name}</h3>
               <p className="text-slate-500 text-sm font-medium mb-8">{mentor.role} at {mentor.company}</p>
@@ -501,16 +554,16 @@ function Demo() {
               <div className="w-full space-y-4 mb-8">
                 <div className="flex justify-between items-center py-2 border-b border-slate-200">
                   <span className="text-slate-500 font-medium">Experience</span>
-                  <span className="text-slate-900 font-bold">6+ years</span>
+                  <span className="text-slate-900 font-bold">{mentor.yearsOfExperience}+ years</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-slate-200">
-                  <span className="text-slate-500 font-medium">Sessions</span>
-                  <span className="text-slate-900 font-bold">200+</span>
+                  <span className="text-slate-500 font-medium">Rate</span>
+                  <span className="text-slate-900 font-bold">${mentor.hourlyRate}/hr</span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-slate-200">
                   <span className="text-slate-500 font-medium">Rating</span>
                   <div className="flex items-center gap-1 font-bold text-slate-900">
-                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" /> 4.0
+                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" /> {mentor.rating.toFixed(1)}
                   </div>
                 </div>
               </div>

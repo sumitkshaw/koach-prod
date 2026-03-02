@@ -6,6 +6,7 @@ import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './modules/auth/auth.routes';
 import mentorRoutes from './modules/mentors/mentors.routes';
 import bookingRoutes from './modules/bookings/bookings.routes';
+import { connectMongoDB } from './config/mongodb';
 
 dotenv.config();
 
@@ -50,10 +51,15 @@ app.use((_req, res) => {
 app.use(errorHandler);
 
 // ── Start ────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-    console.log(`\n🚀 Koach API running at http://localhost:${PORT}`);
-    console.log(`   Health: http://localhost:${PORT}/api/health`);
-    console.log(`   Frontend origin: ${FRONTEND_URL}\n`);
-});
+const start = async () => {
+    await connectMongoDB();
+    app.listen(PORT, () => {
+        console.log(`\n🚀 Koach API running at http://localhost:${PORT}`);
+        console.log(`   Health: http://localhost:${PORT}/api/health`);
+        console.log(`   Frontend origin: ${FRONTEND_URL}\n`);
+    });
+};
+
+start();
 
 export default app;
