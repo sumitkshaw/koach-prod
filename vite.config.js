@@ -8,6 +8,11 @@ export default defineConfig({
   server: {
     port: 3847,
     strictPort: true,
+    // Fix Cross-Origin-Opener-Policy blocking Firebase Google popup
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+      'Cross-Origin-Embedder-Policy': 'unsafe-none',
+    },
     proxy: {
       // All /api/* requests are forwarded to the Express backend
       '/api': {

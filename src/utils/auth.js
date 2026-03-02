@@ -1,264 +1,82 @@
 // src/utils/auth.js
-import { account as appwriteAccount, oauthProviders } from './appwrite';
-import { ID } from 'appwrite';
+// Firebase-based replacements for old Appwrite auth helpers.
+// All functions that pages import from here now use Firebase SDK.
 
-// Re-export the account object for use in other files
-export const account = appwriteAccount;
+import { auth } from './firebase';
+import { sendPasswordResetEmail, confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
 
-// Add delay to prevent rate limiting
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Create account with email/password - FIXED VERSION
-export const createAccount = async (email, password, name) => {
-  try {
-    await delay(1000);
-
-    // Create user account
-    const user = await appwriteAccount.create(ID.unique(), email, password, name);
-
-    // IMPORTANT FIX: Create a session FIRST before sending verification
-    try {
-      // Create a session so we're authenticated
-      await appwriteAccount.createEmailPasswordSession(email, password);
-      
-      // Now send verification (requires authenticated session)
-      await appwriteAccount.createVerification(`${window.location.origin}/verify-success`);
-      
-      // Delete the temporary session
-      await appwriteAccount.deleteSession('current');
-      
-      return { user, message: 'Account created! Verification email sent. Please check your inbox (and spam).' };
-    } catch (verr) {
-      console.warn('[Signup] Verification send failed:', { 
-        message: verr?.message, 
-        code: verr?.code, 
-        type: verr?.type 
-      });
-      
-      // Clean up session if it exists
-      try {
-        await appwriteAccount.deleteSession('current');
-      } catch (e) {
-        // Ignore
-      }
-      
-      // Still consider signup successful
-      return { 
-        user, 
-        message: 'Account created! Please login first, then use "Resend Verification" on the login page to verify your email.'
-      };
-    }
-  } catch (error) {
-    console.error('[Signup] createAccount error:', {
-      message: error?.message,
-      code: error?.code,
-      type: error?.type,
-    });
-    
-    if (error.message?.includes('rate limit') || error.code === 429) {
-      throw new Error('Too many attempts. Please wait before trying again.');
-    }
-    if (error.type === 'user_already_exists') {
-      throw new Error('An account with this email already exists. Please try logging in or use "Forgot Password" if you forgot your password.');
-    }
-    
-    throw new Error('Sign up failed. Please try again.');
-  }
+// ── Get current Firebase user (sync) ────────────────────────────────────────
+export const getCurrentUser = () => {
+  const user = auth.currentUser;
+  if (!user) return null;
+  return {
+    $id: user.uid,
+    uid: user.uid,
+    email: user.email,
+    name: user.displayName || '',
+    emailVerification: user.emailVerified,
+    avatarUrl: user.photoURL || '',
+  };
 };
 
-// Login with email/password - ADD VERIFICATION CHECK
-export const login = async (email, password) => {
-  try {
-    await delay(1000);
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    
-    // Create session
-    const session = await appwriteAccount.createEmailPasswordSession(normalizedEmail, String(password ?? ''));
-    const user = await appwriteAccount.get();
-    
-    // Return user regardless of verification status
-    // Verification check will be handled in AuthContext
-    return { session, user, isVerified: user.emailVerification };
-    
-  } catch (error) {
-    if (error.message?.includes('rate limit') || error.code === 429) {
-      throw new Error('Too many login attempts. Please wait before trying again.');
-    } else if (error.type === 'user_invalid_credentials' || error.code === 401) {
-      // Check if this might be an OAuth account
-      throw new Error('Invalid email or password. Please check Caps Lock and try again, or use "Forgot Password".');
-    }
-    throw new Error(`Login failed. ${error?.message || 'Please try again.'}`);
-  }
-};
-
-// OAuth login
-export const loginWithOAuth = async (provider, successUrl, failureUrl = null) => {
-  try {
-    const defaultFailureUrl = `${window.location.origin}/login?error=${encodeURIComponent(
-      JSON.stringify({ 
-        message: `${provider} authentication failed`, 
-        type: 'oauth_error' 
-      })
-    )}`;
-    
-    await appwriteAccount.createOAuth2Session(
-      provider,
-      successUrl,
-      failureUrl || defaultFailureUrl
-    );
-  } catch (error) {
-    console.error('OAuth login error:', error);
-    throw new Error(`OAuth login failed: ${error.message}`);
-  }
-};
-
-// Verify email using magic URL parameters
-export const verifyEmail = async (userId, secret) => {
-  try {
-    await delay(500);
-    const result = await appwriteAccount.updateVerification(userId, secret);
-    return result;
-  } catch (error) {
-    throw new Error('Invalid or expired verification link.');
-  }
-};
-
-// Resend verification email - IMPROVED VERSION
-export const resendVerification = async (email, password) => {
-  try {
-    await delay(1000);
-    
-    // First create a session
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    await appwriteAccount.createEmailPasswordSession(normalizedEmail, String(password ?? ''));
-    
-    // Now send verification (requires authenticated session)
-    await appwriteAccount.createVerification(`${window.location.origin}/verify-success`);
-    
-    // Clean up session
-    await appwriteAccount.deleteSession('current');
-    
-    return { success: true };
-  } catch (error) {
-    if (error.message?.includes('rate limit') || error.code === 429) {
-      throw new Error('Too many attempts. Please wait before trying again.');
-    }
-    if (error.type === 'user_invalid_credentials' || error.code === 401) {
-      throw new Error('Invalid email or password. Please check your credentials.');
-    }
-    throw new Error(`Failed to send verification email. ${error?.message || 'Please try again.'}`);
-  }
-};
-
-// Get current user
-export const getCurrentUser = async () => {
-  try {
-    const user = await appwriteAccount.get();
-    return user;
-  } catch (error) {
-    return null;
-  }
-};
-
-// Check if user is verified
+// ── Check if current user's email is verified ──────────────────────────────
 export const checkUserVerification = async () => {
-  try {
-    const user = await appwriteAccount.get();
-    return {
-      user,
-      isVerified: user?.emailVerification || false
-    };
-  } catch (error) {
-    return { user: null, isVerified: false };
-  }
+  const user = auth.currentUser;
+  if (!user) return false;
+  await user.reload(); // refresh from Firebase
+  return user.emailVerified;
 };
 
-// Logout
-export const logout = async () => {
-  try {
-    await appwriteAccount.deleteSession('current');
-  } catch (error) {
-    throw error;
-  }
-};
+// ── Check URL params for Appwrite email verification (stub — not used anymore)
+export const checkVerificationInUrl = () => ({ userId: null, secret: null });
 
-// Check URL for verification parameters
-export const checkVerificationInUrl = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const userId = urlParams.get('userId');
-  const secret = urlParams.get('secret');
-  
-  return { userId, secret };
-};
+// ── Verify email (stub — Firebase does this via email link, not URL params)
+export const verifyEmail = async () => ({ success: true });
 
-// Password reset functionality
-export const createPasswordRecovery = async (email, redirectUrl) => {
-  try {
-    await delay(1000);
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    await appwriteAccount.createRecovery(
-      normalizedEmail,
-      redirectUrl || `${window.location.origin}/reset-password`
-    );
-    return { success: true };
-  } catch (error) {
-    if (error.message?.includes('rate limit') || error.code === 429) {
-      throw new Error('Too many attempts. Please wait before trying again.');
-    }
-    if (error.type === 'user_not_found') {
-      throw new Error('No account found with this email address.');
-    }
-    throw new Error(`Failed to send password reset email. ${error?.message || 'Please try again.'}`);
-  }
-};
+// ── Send password reset email ────────────────────────────────────────────────
+export const forgotPassword = (email) =>
+  sendPasswordResetEmail(auth, email);
 
-// Update password using recovery token
-export const updatePassword = async (userId, secret, password) => {
-  try {
-    await delay(1000);
-    await appwriteAccount.updateRecovery(userId, secret, password);
-    return { success: true };
-  } catch (error) {
-    throw new Error('Invalid or expired reset link. Please request a new one.');
-  }
-};
-
-// Check URL for password reset parameters
+// ── Check if URL contains a Firebase password reset code ───────────────────
 export const checkPasswordResetInUrl = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const userId = urlParams.get('userId');
-  const secret = urlParams.get('secret');
-  
-  return { userId, secret };
+  const params = new URLSearchParams(window.location.search);
+  const oobCode = params.get('oobCode');
+  const mode = params.get('mode');
+  return { oobCode, isReset: mode === 'resetPassword' };
 };
 
-// NEW: Send verification from authenticated session
-export const sendVerificationEmail = async () => {
-  try {
-    await appwriteAccount.createVerification(`${window.location.origin}/verify-success`);
-    return { success: true };
-  } catch (error) {
-    console.error('Send verification error:', error);
-    throw new Error(`Failed to send verification email: ${error.message}`);
-  }
+// ── Confirm the new password using oobCode from URL ────────────────────────
+export const resetPassword = async (oobCode, newPassword) => {
+  await confirmPasswordReset(auth, oobCode, newPassword);
 };
 
-// NEW: Check if session exists and user is verified
-export const getSessionStatus = async () => {
-  try {
-    const user = await appwriteAccount.get();
-    const sessions = await appwriteAccount.listSessions();
-    
-    return {
-      hasSession: sessions.total > 0,
-      user,
-      isVerified: user?.emailVerification || false
-    };
-  } catch (error) {
-    return {
-      hasSession: false,
-      user: null,
-      isVerified: false
-    };
-  }
+// ── Verify the oobCode is valid before letting user type new password ───────
+export const verifyResetCode = (oobCode) => verifyPasswordResetCode(auth, oobCode);
+
+// ── Resend email verification ────────────────────────────────────────────────
+export const resendVerification = async () => {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not logged in');
+  const { sendEmailVerification } = await import('firebase/auth');
+  await sendEmailVerification(user);
+};
+
+// ── Update password ──────────────────────────────────────────────────────────
+export const updatePassword = async (oldPassword, newPassword) => {
+  const { EmailAuthProvider, reauthenticateWithCredential, updatePassword: fbUpdatePassword } = await import('firebase/auth');
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not logged in');
+  const credential = EmailAuthProvider.credential(user.email, oldPassword);
+  await reauthenticateWithCredential(user, credential);
+  await fbUpdatePassword(user, newPassword);
+};
+
+// ── OAuth login (legacy stub — real Google login is in authService.js) ──────
+export const loginWithOAuth = () => {
+  console.warn('Use loginWithGoogle from AuthContext instead');
+};
+
+// ── account export stub (some files reference this directly) ────────────────
+export const account = {
+  get: () => Promise.resolve(getCurrentUser()),
 };

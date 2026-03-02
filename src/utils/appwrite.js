@@ -1,16 +1,24 @@
-// src/utils/appwrite.js - FOR APPWRITE 20+
-import { Client, Account, Databases } from 'appwrite';
+// src/utils/appwrite.js
+// STUB — Appwrite has been replaced by Firebase Auth + MongoDB.
+// This file exists so any stray import doesn't crash the app.
+// Do not use these exports — they are no-ops.
 
-// Create client
-export const client = new Client()
-  .setEndpoint('https://fra.cloud.appwrite.io/v1')
-  .setProject('68d6e7520021a096d289');
+export const account = {
+  get: () => Promise.reject(new Error('Appwrite removed — use Firebase')),
+  createEmailPasswordSession: () => Promise.reject(new Error('Appwrite removed')),
+  deleteSession: () => Promise.resolve(),
+};
 
-// Create services
-export const account = new Account(client);
-export const databases = new Databases(client);
+export const databases = {
+  createDocument: () => Promise.reject(new Error('Appwrite removed — use MongoDB')),
+  listDocuments: () => Promise.reject(new Error('Appwrite removed — use MongoDB')),
+  updateDocument: () => Promise.reject(new Error('Appwrite removed — use MongoDB')),
+  deleteDocument: () => Promise.reject(new Error('Appwrite removed — use MongoDB')),
+};
 
-// Constants
-export const DATABASE_ID = 'user_profile';
-export const USER_PROFILES_COLLECTION_ID = 'user_profiles';
-export const oauthProviders = { google: 'google', linkedin: 'linkedin' };
+export const oauthProviders = {};
+
+export const DATABASE_ID = '';
+export const USER_PROFILES_COLLECTION_ID = '';
+
+console.warn('[appwrite.js] Appwrite has been replaced by Firebase + MongoDB. This stub should not be called.');

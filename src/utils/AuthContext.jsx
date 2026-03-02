@@ -27,9 +27,18 @@ export const AuthProvider = ({ children }) => {
           avatarUrl: firebaseUser.photoURL || '',
         };
         setUser(normalizedUser);
-        // Ensure MongoDB UserProfile exists
+        // Upsert MongoDB UserProfile with all Firebase user data
         try {
-          await createUserProfile({ userId: firebaseUser.uid, userType: 'mentee' });
+          const nameParts = (firebaseUser.displayName || '').split(' ');
+          await createUserProfile({
+            userId: firebaseUser.uid,
+            appwriteUserId: firebaseUser.uid,
+            userType: 'mentee',
+            email: firebaseUser.email || '',
+            firstName: nameParts[0] || '',
+            lastName: nameParts.slice(1).join(' ') || '',
+            avatarUrl: firebaseUser.photoURL || '',
+          });
         } catch { /* already exists — fine */ }
       } else {
         setUser(null);
@@ -43,8 +52,15 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (name, email, password, userType = 'mentee') => {
     const firebaseUser = await authService.signup(name, email, password);
-    // Create MongoDB profile for the new user
-    await createUserProfile({ userId: firebaseUser.uid, userType, email, name });
+    const nameParts = name.split(' ');
+    await createUserProfile({
+      userId: firebaseUser.uid,
+      appwriteUserId: firebaseUser.uid,
+      userType,
+      email,
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+    });
     return firebaseUser;
   };
 
@@ -52,9 +68,16 @@ export const AuthProvider = ({ children }) => {
 
   const loginWithGoogle = async (navigate, isSignup = false, userType = 'mentee') => {
     const firebaseUser = await authService.loginWithGoogle();
-    // Upsert MongoDB profile
-    await createUserProfile({ userId: firebaseUser.uid, userType, email: firebaseUser.email, name: firebaseUser.displayName });
-    // Navigate based on context
+    const nameParts = (firebaseUser.displayName || '').split(' ');
+    await createUserProfile({
+      userId: firebaseUser.uid,
+      appwriteUserId: firebaseUser.uid,
+      userType,
+      email: firebaseUser.email || '',
+      firstName: nameParts[0] || '',
+      lastName: nameParts.slice(1).join(' ') || '',
+      avatarUrl: firebaseUser.photoURL || '',
+    });
     if (navigate) {
       navigate(userType === 'mentor' ? '/mentor-onboarding' : '/dashboard');
     }
