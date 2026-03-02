@@ -6,6 +6,7 @@ import { errorHandler } from './middleware/errorHandler';
 import authRoutes from './modules/auth/auth.routes';
 import mentorRoutes from './modules/mentors/mentors.routes';
 import bookingRoutes from './modules/bookings/bookings.routes';
+import userRoutes from './modules/users/users.routes';
 import { connectMongoDB } from './config/mongodb';
 
 dotenv.config();
@@ -41,6 +42,7 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/mentors', mentorRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/users', userRoutes);
 
 // ── 404 Handler ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {

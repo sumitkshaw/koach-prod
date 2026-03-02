@@ -205,70 +205,76 @@ export default function MentorOnboardingPage() {
   if (!user?.$id) return;
   
   // Validate all steps before completion
-  const allStepsValid = steps.every((step, index) => {
+  const allStepsValid = steps.every((step) => {
     return step.fields.every(field => {
       if (!field.required) return true;
-      
       const value = formData[field.field];
-      
-      // Handle pricing tiers separately
-      if (field.type === 'pricing') {
-        return value && value.length > 0;
-      }
-      
-      // Handle location fields
-      if (field.type === 'location') {
-        return formData.location.continent && formData.location.state;
-      }
-      
-      // Handle multiselect fields (arrays)
-      if (field.type === 'multiselect' || field.type === 'expertise') {
-        return value && value.length > 0;
-      }
-      
-      // Handle select fields
-      if (field.type === 'select') {
-        return value !== undefined && value !== null && value !== '';
-      }
-      
-      // Handle number fields
-      if (field.type === 'number') {
-        return value !== undefined && value !== null && value !== '' && value > 0;
-      }
-      
-      // Handle text/textarea fields (strings)
-      if (field.type === 'textarea' || field.type === 'text') {
-        return value && typeof value === 'string' && value.trim() !== '';
-      }
-      
-      // Default: check if value exists (for other types)
+      if (field.type === 'pricing') return value && value.length > 0;
+      if (field.type === 'location') return formData.location.continent && formData.location.state;
+      if (field.type === 'multiselect' || field.type === 'expertise') return value && value.length > 0;
+      if (field.type === 'select') return value !== undefined && value !== null && value !== '';
+      if (field.type === 'number') return value !== undefined && value !== null && value !== '' && value > 0;
+      if (field.type === 'textarea' || field.type === 'text') return value && typeof value === 'string' && value.trim() !== '';
       return !!value;
     });
   });
   
   if (!allStepsValid) {
-    alert('Please complete all required fields before completing onboarding.');
+    alert('Please complete all required fields before finishing.');
+    return;
+  }
+
+  // Bio word count check
+  const bioWords = (formData.bio || '').trim().split(/\s+/).length;
+  if (bioWords < 50) {
+    alert('Your bio must be at least 50 words.');
     return;
   }
   
   setLoading(true);
   try {
-    // Prepare final data (keeping backward compatibility)
-    const finalData = {
-      ...formData,
-      // teachingStyle is already stored as array
-      // Set hourlyRate based on selected pricing tier
-      hourlyRate: formData.pricingTiers.length > 0 ? formData.pricingTiers[0] : ''
+    // Parse hourly rate from the selected pricing tier string (e.g. "basic_20" → 20)
+    let parsedRate = 0;
+    if (formData.pricingTiers && formData.pricingTiers.length > 0) {
+      const match = formData.pricingTiers[0].match(/\d+/);
+      if (match) parsedRate = parseInt(match[0]);
+    }
+    
+    // Build the payload that maps to the Mentor MongoDB schema
+    const mentorPayload = {
+      // Identity
+      firstName: user?.name?.split(' ')[0] || '',
+      lastName: user?.name?.split(' ').slice(1).join(' ') || '',
+      // Expertise (Step 1)
+      primaryField: formData.primaryField,
+      expertise: formData.expertise,
+      technicalSpecialties: formData.technicalSpecialties,
+      yearsOfExperience: formData.yearsOfExperience,
+      // Credentials (Step 2)
+      education: formData.education,
+      certifications: formData.certifications,
+      notableAchievements: formData.notableAchievements,
+      location: formData.location,
+      // Teaching Style (Step 3)
+      teachingStyle: formData.teachingStyle,
+      availabilityHours: formData.availabilityHours,
+      communicationPreferences: formData.communicationPreferences,
+      // Professional Details (Step 4)
+      hourlyRate: parsedRate,
+      pricingTiers: formData.pricingTiers,
+      bio: formData.bio,
+      linkedinProfile: formData.linkedinProfile,
+      portfolioUrl: formData.portfolioUrl,
+      language: 'English',
     };
+
+    // This hits /api/users/complete-mentor-onboarding which creates a Mentor doc in MongoDB
+    await completeMentorOnboarding(user.$id, mentorPayload);
     
-    // Save final data
-    await completeMentorOnboarding(user.$id, finalData);
-    
-    // Redirect to mentor dashboard
-    navigate("/dashboard_mentor");
+    navigate('/dashboard_mentor');
   } catch (error) {
     console.error('Failed to complete onboarding:', error);
-    alert('Failed to save. Please try again.');
+    alert(`Failed to save: ${error.message}`);
   } finally {
     setLoading(false);
   }

@@ -1,71 +1,90 @@
 // src/services/authService.js
-// All auth operations go through the backend API — no direct Appwrite SDK in frontend
+// Firebase-based auth — no Appwrite SDK, no backend proxy for login/signup
 
-import api from './api';
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  updateProfile,
+} from 'firebase/auth';
+import { auth, googleProvider } from '../utils/firebase';
 
 /**
- * Login with email and password.
- * Returns { session, user, profile, isVerified }
- * Stores session secret in localStorage for subsequent API calls.
+ * Sign up with email + password.
+ * Creates the user in Firebase Auth and sets displayName.
+ */
+export const signup = async (name, email, password) => {
+  const { user } = await createUserWithEmailAndPassword(auth, email, password);
+  await updateProfile(user, { displayName: name });
+  await sendEmailVerification(user);
+  return user;
+};
+
+/**
+ * Login with email + password.
  */
 export const login = async (email, password) => {
-  const { data } = await api.post('/api/auth/login', { email, password });
-  if (data.session?.secret) {
-    localStorage.setItem('koach_session', data.session.secret);
-  }
-  return data;
+  const { user } = await signInWithEmailAndPassword(auth, email, password);
+  return user;
 };
 
 /**
- * Sign up a new user.
- * Returns { userId, message }
+ * Login with Google popup.
  */
-export const signup = async (name, email, password, userType = 'mentee') => {
-  const { data } = await api.post('/api/auth/signup', { name, email, password, userType });
-  return data;
+export const loginWithGoogle = async () => {
+  const { user } = await signInWithPopup(auth, googleProvider);
+  return user;
 };
 
 /**
- * Logout — deletes the session on Appwrite, clears localStorage.
+ * Logout — signs out from Firebase.
  */
-export const logout = async () => {
-  try {
-    await api.post('/api/auth/logout');
-  } finally {
-    localStorage.removeItem('koach_session');
-  }
+export const logout = () => signOut(auth);
+
+/**
+ * Send password reset email.
+ */
+export const forgotPassword = (email) => sendPasswordResetEmail(auth, email);
+
+/**
+ * Send email verification to current user.
+ */
+export const sendVerification = () => {
+  const user = auth.currentUser;
+  if (user) return sendEmailVerification(user);
 };
 
 /**
- * Get the current authenticated user + profile.
- * Returns { user, profile } or null if not authenticated.
+ * Get current Firebase user (synchronous).
+ */
+export const getCurrentUser = () => auth.currentUser;
+
+/**
+ * Get a fresh ID token for the backend (call before protected API requests).
+ */
+export const getIdToken = (forceRefresh = false) => {
+  const user = auth.currentUser;
+  return user ? user.getIdToken(forceRefresh) : Promise.resolve(null);
+};
+
+/**
+ * Backward-compat stub — used by some components.
  */
 export const getMe = async () => {
-  try {
-    const { data } = await api.get('/api/auth/me');
-    return data;
-  } catch {
-    return null;
-  }
+  const user = auth.currentUser;
+  if (!user) return null;
+  return {
+    user: {
+      $id: user.uid,
+      uid: user.uid,
+      email: user.email,
+      name: user.displayName || '',
+      emailVerification: user.emailVerified,
+    },
+  };
 };
 
-/**
- * Send verification email to the currently logged-in user.
- */
-export const sendVerification = async () => {
-  const { data } = await api.post('/api/auth/verify');
-  return data;
-};
-
-/**
- * Send a password reset email.
- */
-export const forgotPassword = async (email) => {
-  const { data } = await api.post('/api/auth/forgot-password', { email });
-  return data;
-};
-
-/**
- * Check if we have a stored session (fast client-side check).
- */
-export const hasStoredSession = () => !!localStorage.getItem('koach_session');
+export const hasStoredSession = () => !!auth.currentUser;

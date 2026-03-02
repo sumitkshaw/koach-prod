@@ -1,284 +1,90 @@
-import { ID, Query } from 'appwrite';
-import { databases, DATABASE_ID, USER_PROFILES_COLLECTION_ID } from '../appwrite';
+/**
+ * profiles.js — Now speaks to our MongoDB backend instead of Appwrite directly.
+ * Auth still uses Appwrite. All user/mentor profile data lives in MongoDB.
+ */
+import api from '../../services/api';
 
-const COLLECTION_ID = USER_PROFILES_COLLECTION_ID;
-
+// ── Get user's profile from MongoDB ─────────────────────────────────────────
 export const getUserProfile = async (userId) => {
   try {
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID,
-      [Query.equal('userId', userId)]
-    );
-    
-    if (response.documents.length > 0) {
-      return response.documents[0];
-    }
-    return null;
+    const res = await api.get('/api/users/me');
+    return res.data;
   } catch (error) {
-    // Don't throw for "not found" scenarios
-    if (error.code === 404 || error.message?.includes('not found')) {
-      return null;
-    }
+    if (error?.response?.status === 404) return null;
     console.error('Error fetching user profile:', error);
-    throw new Error('Failed to fetch user profile');
+    return null;
   }
 };
-/**
- * Create a new user profile
- * @param {Object} profileData - Profile data including userId and userType
- * @returns {Promise<Object>} Created profile document
- */
+
+// ── Create or update user profile in MongoDB (upsert) ───────────────────────
 export const createUserProfile = async (profileData) => {
   try {
-    // 1. FIRST ALWAYS CHECK IF EXISTS
-    const existingProfile = await getUserProfile(profileData.userId);
-    if (existingProfile) {
-      console.log('✅ Profile already exists, returning it');
-      return existingProfile;
-    }
-    
-    // 2. Generate document ID using userId + timestamp to avoid collisions
-    const documentId = ID.unique();
-    // Alternative: Use consistent ID based on userId
-    // const documentId = `profile_${profileData.userId}`;
-    
-    const profile = {
-      userId: profileData.userId,
-      userType: profileData.userType || 'mentee',
-      onboardingComplete: profileData.onboardingComplete || false,
-      profileComplete: profileData.profileComplete || false,
-      currentOnboardingStep: profileData.currentOnboardingStep || 1,
-      onboardingData: profileData.onboardingData || '{}',
-      profileData: profileData.profileData || '{}',
-    };
-    
-    // 3. Try to create with retry logic
-    let retries = 3;
-    while (retries > 0) {
-      try {
-        const response = await databases.createDocument(
-          DATABASE_ID,
-          COLLECTION_ID,
-          documentId,
-          profile
-        );
-        console.log('✅ Profile created successfully');
-        return response;
-      } catch (createError) {
-        retries--;
-        
-        // If conflict, check if it was created by another process
-        if (createError.code === 409 || createError.message?.includes('already exists')) {
-          console.log('🔄 Document conflict, checking if exists now...');
-          const existing = await getUserProfile(profileData.userId);
-          if (existing) {
-            console.log('✅ Found existing document after conflict');
-            return existing;
-          }
-          
-          if (retries > 0) {
-            console.log(`🔄 Retrying... ${retries} attempts left`);
-            // Wait a bit before retry
-            await new Promise(resolve => setTimeout(resolve, 300));
-            continue;
-          }
-        }
-        
-        // If other error or no retries left
-        throw createError;
-      }
-    }
-    
+    const res = await api.post('/api/users/profile', profileData);
+    return res.data;
   } catch (error) {
-    console.error('❌ Error in createUserProfile:', error);
-    
-    // Final fallback: try to get existing
-    try {
-      const existing = await getUserProfile(profileData.userId);
-      if (existing) {
-        console.log('✅ Recovered existing profile after error');
-        return existing;
-      }
-    } catch (fallbackError) {
-      // Ignore fallback error
-    }
-    
-    throw new Error(`Failed to create user profile: ${error.message}`);
+    console.error('Error creating/updating user profile:', error);
+    throw new Error(`Failed to save user profile: ${error?.response?.data?.error || error.message}`);
   }
 };
 
-
-/**
- * Update an existing user profile
- * @param {string} documentId - The profile document ID ($id)
- * @param {Object} updates - Fields to update
- * @returns {Promise<Object>} Updated profile document
- */
-export const updateUserProfile = async (documentId, updates) => {
+// ── Partially update user profile ───────────────────────────────────────────
+export const updateUserProfile = async (_documentId, updates) => {
+  // _documentId ignored — we use the auth token to identify the user
   try {
-    const response = await databases.updateDocument(
-      DATABASE_ID,
-      COLLECTION_ID,
-      documentId,
-      {
-        ...updates,
-        $updatedAt: new Date().toISOString(),
-      }
-    );
-    
-    return response;
+    const res = await api.patch('/api/users/profile', updates);
+    return res.data;
   } catch (error) {
     console.error('Error updating user profile:', error);
     throw new Error('Failed to update user profile');
   }
 };
 
-/**
- * Update user profile by userId (finds and updates)
- * @param {string} userId - The user's AppWrite ID
- * @param {Object} updates - Fields to update
- * @returns {Promise<Object>} Updated profile document
- */
-export const updateUserProfileByUserId = async (userId, updates) => {
-  try {
-    const profile = await getUserProfile(userId);
-    if (!profile) {
-      throw new Error('User profile not found');
-    }
-    
-    return await updateUserProfile(profile.$id, updates);
-  } catch (error) {
-    console.error('Error updating user profile by userId:', error);
-    throw error;
-  }
+export const updateUserProfileByUserId = async (_userId, updates) => {
+  return updateUserProfile(null, updates);
 };
 
-/**
- * Check if user needs onboarding
- * @param {string} userId - The user's AppWrite ID
- * @returns {Promise<Object>} Onboarding status
- */
-export const checkOnboardingStatus = async (userId) => {
+// ── Check if user needs onboarding ──────────────────────────────────────────
+export const checkOnboardingStatus = async (_userId) => {
   try {
-    const profile = await getUserProfile(userId);
-    
-    if (!profile) {
-      return {
-        hasProfile: false,
-        needsOnboarding: true,
-        needsProfileCompletion: true,
-        userType: null,
-      };
-    }
-    
-    return {
-      hasProfile: true,
-      needsOnboarding: profile.userType === 'mentor' && !profile.onboardingComplete,
-      needsProfileCompletion: profile.userType === 'mentee' && !profile.profileComplete,
-      userType: profile.userType,
-      profile,
-    };
+    const res = await api.get('/api/users/onboarding-status');
+    return res.data;
   } catch (error) {
     console.error('Error checking onboarding status:', error);
-    throw new Error('Failed to check onboarding status');
+    return { hasProfile: false, onboardingComplete: false, userType: null };
   }
 };
 
-/**
- * Mark mentor onboarding as complete
- * @param {string} userId - The user's AppWrite ID
- * @param {Object} onboardingData - Final onboarding data
- * @returns {Promise<Object>} Updated profile
- */
-export const completeMentorOnboarding = async (userId, onboardingData = {}) => {
-  return await updateUserProfileByUserId(userId, {
-    onboardingComplete: true,
-    onboardingData: JSON.stringify(onboardingData),
-    currentOnboardingStep: 1, // Reset for future use
-  });
-};
-
-/**
- * Mark mentee profile as complete
- * @param {string} userId - The user's AppWrite ID
- * @param {Object} profileData - Final profile data
- * @returns {Promise<Object>} Updated profile
- */
-export const completeMenteeProfile = async (userId, profileData = {}) => {
-  return await updateUserProfileByUserId(userId, {
-    profileComplete: true,
-    profileData: JSON.stringify(profileData),
-  });
-};
-
-/**
- * Save onboarding progress (for multi-step forms)
- * @param {string} userId - The user's AppWrite ID
- * @param {number} step - Current step number
- * @param {Object} data - Step data to save
- * @returns {Promise<Object>} Updated profile
- */
-export const saveOnboardingProgress = async (userId, step, data) => {
-  const profile = await getUserProfile(userId);
-  if (!profile) {
-    throw new Error('Profile not found');
-  }
-  
-  // Parse existing data
-  const existingData = profile.onboardingData ? JSON.parse(profile.onboardingData) : {};
-  
-  // Merge with new data
-  const updatedData = {
-    ...existingData,
-    [`step${step}`]: data,
-    lastSaved: new Date().toISOString(),
-  };
-  
-  return await updateUserProfileByUserId(userId, {
-    currentOnboardingStep: step,
-    onboardingData: JSON.stringify(updatedData),
-  });
-};
-
-/**
- * Get incomplete profiles (for admin or reminders)
- * @param {string} userType - Optional filter by userType
- * @returns {Promise<Array>} List of incomplete profiles
- */
-export const getIncompleteProfiles = async (userType = null) => {
+// ── Complete mentor onboarding — creates Mentor document in MongoDB ──────────
+export const completeMentorOnboarding = async (_userId, onboardingData = {}) => {
   try {
-    let queries = [];
-    
-    if (userType === 'mentor') {
-      queries.push(Query.equal('userType', 'mentor'));
-      queries.push(Query.equal('onboardingComplete', false));
-    } else if (userType === 'mentee') {
-      queries.push(Query.equal('userType', 'mentee'));
-      queries.push(Query.equal('profileComplete', false));
-    } else {
-      // Get all incomplete profiles
-      queries.push(Query.or([
-        Query.and([
-          Query.equal('userType', 'mentor'),
-          Query.equal('onboardingComplete', false),
-        ]),
-        Query.and([
-          Query.equal('userType', 'mentee'),
-          Query.equal('profileComplete', false),
-        ]),
-      ]));
-    }
-    
-    const response = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTION_ID,
-      queries
-    );
-    
-    return response.documents;
+    const res = await api.post('/api/users/complete-mentor-onboarding', onboardingData);
+    return res.data;
   } catch (error) {
-    console.error('Error fetching incomplete profiles:', error);
-    throw new Error('Failed to fetch incomplete profiles');
+    console.error('Error completing mentor onboarding:', error);
+    throw new Error(`Failed to complete mentor onboarding: ${error?.response?.data?.error || error.message}`);
   }
 };
+
+// ── Complete mentee onboarding — creates UserProfile in MongoDB ──────────────
+export const completeMenteeProfile = async (_userId, profileData = {}) => {
+  try {
+    const res = await api.post('/api/users/complete-mentee-onboarding', profileData);
+    return res.data;
+  } catch (error) {
+    console.error('Error completing mentee onboarding:', error);
+    throw new Error(`Failed to complete mentee profile: ${error?.response?.data?.error || error.message}`);
+  }
+};
+
+// ── Save onboarding progress (partial auto-save) ─────────────────────────────
+export const saveOnboardingProgress = async (_userId, step, data) => {
+  try {
+    await api.patch('/api/users/profile', { onboardingStep: step, ...data });
+  } catch (error) {
+    // Non-fatal — just log it
+    console.warn(`Auto-save step ${step} failed (non-fatal):`, error?.message);
+  }
+};
+
+// ── Get incomplete profiles (kept for backward compat, returns empty) ─────────
+export const getIncompleteProfiles = async () => [];
