@@ -9,7 +9,7 @@ import Footer from '../Footer';
 import { useAuth } from '../../utils/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { getUserProfile } from '../../utils/database/profiles';
-import ProfileWarning from '../../components/ProfileWarning';
+import ProfileBanner from '../../components/ProfileBanner';
 import { getCurrentUser } from '../../utils/auth';
 
 // --- Premium Streak Widget ---
@@ -179,7 +179,7 @@ const Dashboard = () => {
           return;
         }
         setUserProfile(profile);
-        if (profile?.userType === 'mentee' && !profile.profileComplete) {
+        if (profile?.userType === 'mentee' && !profile.onboardingComplete) {
           setShowWarning(true);
         }
       } catch (error) {
@@ -433,7 +433,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {showWarning && <ProfileWarning />}
+        {showWarning && <ProfileBanner />}
       </div>
       <Footer />
     </div>
