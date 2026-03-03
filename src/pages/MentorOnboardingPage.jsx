@@ -61,141 +61,181 @@ const emptyExp = () => ({ title: '', company: '', period: '', description: '' })
 // ── Image Crop Modal ──────────────────────────────────────────────────────────
 
 function CropModal({ file, onSave, onClose }) {
-  const [scale, setScale] = useState(1);
+  const PAD = 40;
+
+  const [imgSrc, setImgSrc]     = useState('');          // data URL from FileReader
+  const [imgDims, setImgDims]   = useState({ w: 0, h: 0 });
+  const [scale, setScale]       = useState(1);
   const [minScale, setMinScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [offset, setOffset]     = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0, ox: 0, oy: 0 });
-  const [imgDims, setImgDims] = useState({ w: 0, h: 0 });
-  const [imgLoaded, setImgLoaded] = useState(false);
+  const [dragStart, setDragStart]   = useState({ x: 0, y: 0, ox: 0, oy: 0 });
   const imgRef = useRef(null);
-  const imgSrc = useRef(URL.createObjectURL(file)).current;
 
-  useEffect(() => () => URL.revokeObjectURL(imgSrc), [imgSrc]);
+  // Load file as a data URL — most reliable, works everywhere
+  useEffect(() => {
+    const reader = new FileReader();
+    reader.onload = (e) => setImgSrc(e.target.result);
+    reader.readAsDataURL(file);
+  }, [file]);
 
-  const clampOffset = useCallback((ox, oy, s, dims) => {
+  const clamp = (ox, oy, s, dims) => {
     const d = dims || imgDims;
     if (!d.w) return { x: 0, y: 0 };
-    const maxX = Math.max(0, d.w * s / 2 - CROP_SIZE / 2);
-    const maxY = Math.max(0, d.h * s / 2 - CROP_SIZE / 2);
-    return {
-      x: Math.max(-maxX, Math.min(maxX, ox)),
-      y: Math.max(-maxY, Math.min(maxY, oy)),
-    };
-  }, [imgDims]);
+    const maxX = Math.max(0, (d.w * s - CROP_SIZE) / 2);
+    const maxY = Math.max(0, (d.h * s - CROP_SIZE) / 2);
+    return { x: Math.max(-maxX, Math.min(maxX, ox)), y: Math.max(-maxY, Math.min(maxY, oy)) };
+  };
 
-  const handleImageLoad = () => {
+  const handleLoad = () => {
     const img = imgRef.current;
     if (!img) return;
     const dims = { w: img.naturalWidth, h: img.naturalHeight };
-    const init = Math.max(CROP_SIZE / dims.w, CROP_SIZE / dims.h);
+    const ms = Math.max(CROP_SIZE / dims.w, CROP_SIZE / dims.h);
     setImgDims(dims);
-    setMinScale(init);
-    setScale(init);
+    setMinScale(ms);
+    setScale(ms);
     setOffset({ x: 0, y: 0 });
-    setImgLoaded(true);
   };
 
-  const tx = CROP_SIZE / 2 + offset.x - imgDims.w * scale / 2;
-  const ty = CROP_SIZE / 2 + offset.y - imgDims.h * scale / 2;
+  // Image position inside the full container (CROP_SIZE + 2*PAD square)
+  // tx/ty = top-left corner of the scaled image in container coordinates
+  const imgW = imgDims.w * scale;
+  const imgH = imgDims.h * scale;
+  const tx = PAD + (CROP_SIZE - imgW) / 2 + offset.x;
+  const ty = PAD + (CROP_SIZE - imgH) / 2 + offset.y;
+  const containerSize = CROP_SIZE + PAD * 2;
 
-  const startDrag = (clientX, clientY) => {
+  // With CSS transform:
+  // • img renders at its NATURAL size (never 0×0)
+  // • translate(tx, ty): move the top-left to the correct position
+  // • scale(scale): scale from that corner  (transformOrigin 0 0)
+  const imgTransform = imgDims.w
+    ? `translate(${tx}px, ${ty}px) scale(${scale})`
+    : 'translate(0px, 0px) scale(1)';
+
+  const startDrag = (cx, cy) => {
     setIsDragging(true);
-    setDragStart({ x: clientX, y: clientY, ox: offset.x, oy: offset.y });
+    setDragStart({ x: cx, y: cy, ox: offset.x, oy: offset.y });
   };
-  const moveDrag = (clientX, clientY) => {
+  const moveDrag = (cx, cy) => {
     if (!isDragging) return;
-    setOffset(clampOffset(dragStart.ox + (clientX - dragStart.x), dragStart.oy + (clientY - dragStart.y), scale));
+    setOffset(clamp(dragStart.ox + (cx - dragStart.x), dragStart.oy + (cy - dragStart.y), scale));
   };
-  const endDrag = () => setIsDragging(false);
 
   const handleSave = () => {
-    if (!imgRef.current || !imgLoaded) return;
-    const out = 400;
+    if (!imgRef.current || !imgDims.w) return;
+    const OUT = 400;
     const canvas = document.createElement('canvas');
-    canvas.width = out; canvas.height = out;
+    canvas.width = OUT; canvas.height = OUT;
     const ctx = canvas.getContext('2d');
-    ctx.beginPath();
-    ctx.arc(out / 2, out / 2, out / 2, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(imgRef.current, -tx / scale, -ty / scale, CROP_SIZE / scale, CROP_SIZE / scale, 0, 0, out, out);
+    // Map the crop window [PAD, PAD+CROP_SIZE] back to natural image coordinates
+    const sx = (PAD - tx) / scale;
+    const sy = (PAD - ty) / scale;
+    const sw = CROP_SIZE / scale;
+    ctx.drawImage(imgRef.current, sx, sy, sw, sw, 0, 0, OUT, OUT);
     onSave(canvas.toDataURL('image/jpeg', 0.92));
   };
 
+  const DIM = 'rgba(0,0,0,0.62)';
+
   return (
     <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[200] p-4 select-none"
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm select-none"
       onMouseMove={e => moveDrag(e.clientX, e.clientY)}
-      onMouseUp={endDrag}
-      onTouchMove={e => moveDrag(e.touches[0].clientX, e.touches[0].clientY)}
-      onTouchEnd={endDrag}
+      onMouseUp={() => setIsDragging(false)}
+      onTouchMove={e => { e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); }}
+      onTouchEnd={() => setIsDragging(false)}
     >
-      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-5">
+      <div className="bg-white rounded-2xl shadow-2xl p-5 w-full max-w-sm" onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex justify-between items-center mb-4">
           <div>
             <h3 className="text-base font-bold text-slate-900">Crop Profile Photo</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Drag to reposition · Scroll to zoom</p>
+            <p className="text-xs text-slate-400 mt-0.5">Drag to reframe · use slider to zoom</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
             <X className="w-4 h-4 text-slate-400" />
           </button>
         </div>
 
-        {/* Crop circle */}
-        <div className="flex justify-center mb-5">
-          <div style={{ position: 'relative', width: CROP_SIZE, height: CROP_SIZE }}>
-            <div
-              style={{ width: CROP_SIZE, height: CROP_SIZE, borderRadius: '50%', overflow: 'hidden', cursor: isDragging ? 'grabbing' : 'grab', border: '3px solid #3B82F6', position: 'relative', background: '#f1f5f9' }}
-              onMouseDown={e => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
-              onTouchStart={e => startDrag(e.touches[0].clientX, e.touches[0].clientY)}
-              onWheel={e => {
-                e.preventDefault();
-                const next = Math.max(minScale, Math.min(minScale * 4, scale - e.deltaY * 0.001));
-                setScale(next);
-                setOffset(prev => clampOffset(prev.x, prev.y, next));
-              }}
-            >
+        {/* Crop viewport */}
+        <div className="flex justify-center mb-4">
+          <div
+            style={{
+              width: containerSize, height: containerSize,
+              position: 'relative', overflow: 'hidden',
+              borderRadius: 10, background: '#222',
+              cursor: isDragging ? 'grabbing' : 'grab',
+            }}
+            onMouseDown={e => { e.preventDefault(); startDrag(e.clientX, e.clientY); }}
+            onTouchStart={e => { e.preventDefault(); startDrag(e.touches[0].clientX, e.touches[0].clientY); }}
+          >
+            {/* Image — always at natural size, positioned via CSS transform */}
+            {imgSrc && (
               <img
                 ref={imgRef}
                 src={imgSrc}
                 alt="crop-preview"
-                onLoad={handleImageLoad}
+                onLoad={handleLoad}
                 draggable={false}
                 style={{
                   position: 'absolute',
-                  left: tx, top: ty,
-                  width: imgDims.w * scale,
-                  height: imgDims.h * scale,
+                  top: 0, left: 0,                      // anchor at container origin
+                  transformOrigin: '0 0',               // scale from top-left
+                  transform: imgTransform,
+                  opacity: imgDims.w ? 1 : 0,           // hide only until load fires
+                  transition: 'opacity 0.15s',
                   pointerEvents: 'none',
                   userSelect: 'none',
                   display: 'block',
+                  maxWidth: 'none',                      // never constrain natural width
                 }}
               />
-            </div>
-            {/* Guide ring */}
+            )}
+
+            {/* Dim panels outside crop window */}
+            <div style={{ position:'absolute', top:0,    left:0,  right:0,  height:PAD,       background:DIM, pointerEvents:'none' }} />
+            <div style={{ position:'absolute', bottom:0, left:0,  right:0,  height:PAD,       background:DIM, pointerEvents:'none' }} />
+            <div style={{ position:'absolute', top:PAD,  left:0,  width:PAD, height:CROP_SIZE, background:DIM, pointerEvents:'none' }} />
+            <div style={{ position:'absolute', top:PAD,  right:0, width:PAD, height:CROP_SIZE, background:DIM, pointerEvents:'none' }} />
+
+            {/* Blue crop border + corner marks */}
             <div style={{
-              position: 'absolute', inset: 0, borderRadius: '50%',
-              boxShadow: '0 0 0 3px #3B82F6, 0 0 0 9999px rgba(0,0,0,0.45)',
-              pointerEvents: 'none',
-            }} />
+              position:'absolute', top:PAD, left:PAD,
+              width:CROP_SIZE, height:CROP_SIZE,
+              border:'2px solid #3B82F6', boxSizing:'border-box', pointerEvents:'none',
+            }}>
+              {[
+                { top:-1, left:-1 },
+                { top:-1, right:-1, transform:'scaleX(-1)' },
+                { bottom:-1, left:-1, transform:'scaleY(-1)' },
+                { bottom:-1, right:-1, transform:'scale(-1)' },
+              ].map((s, i) => (
+                <div key={i} style={{ position:'absolute', width:16, height:16,
+                  borderTop:'3px solid white', borderLeft:'3px solid white', ...s }} />
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Zoom slider */}
-        <div className="mb-6 px-2">
-          <div className="flex items-center gap-3">
-            <ZoomIn className="w-4 h-4 text-slate-400 flex-shrink-0" />
-            <input type="range"
-              min={minScale} max={minScale * 4} step={0.01}
-              value={scale}
-              onChange={e => {
-                const s = +e.target.value;
-                setScale(s);
-                setOffset(prev => clampOffset(prev.x, prev.y, s));
-              }}
-              className="flex-1 accent-blue-600 h-1.5 rounded-full"
-            />
-          </div>
+        <div className="flex items-center gap-3 mb-5 px-1">
+          <ZoomIn className="w-4 h-4 text-slate-400 flex-shrink-0" />
+          <input
+            type="range"
+            min={minScale || 0.1} max={(minScale || 0.1) * 4} step={0.005}
+            value={scale}
+            onChange={e => {
+              const s = +e.target.value;
+              setScale(s);
+              setOffset(prev => clamp(prev.x, prev.y, s));
+            }}
+            className="flex-1 accent-blue-600"
+            disabled={!imgDims.w}
+          />
+          <ZoomIn className="w-5 h-5 text-slate-400 flex-shrink-0" />
         </div>
 
         <div className="flex gap-3">
@@ -203,9 +243,9 @@ function CropModal({ file, onSave, onClose }) {
             className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-colors">
             Cancel
           </button>
-          <button onClick={handleSave}
-            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
-            Save Photo
+          <button onClick={handleSave} disabled={!imgDims.w}
+            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50">
+            Use Photo
           </button>
         </div>
       </div>
@@ -214,6 +254,7 @@ function CropModal({ file, onSave, onClose }) {
 }
 
 // ── Job Title Autocomplete Combobox ───────────────────────────────────────────
+
 
 function TitleComboBox({ value, onChange, err }) {
   const [inputVal, setInputVal] = useState(value || '');
