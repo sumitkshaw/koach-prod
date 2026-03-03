@@ -34,6 +34,8 @@ import NotFound from "./pages/NotFound";
 import Listing from "./pages/listing-booking/Listing.jsx";
 import Demo from "./pages/listing-booking/Demo.jsx";
 import CirclePage from "./pages/CirclePage.jsx";
+import AdminLogin from "./pages/admin/AdminLogin.jsx";
+import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 
 //Mentee Onboard
 import PastExp from "./pages/MenteeOnboard/PastExp";
@@ -99,6 +101,10 @@ function AppContent() {
         <Route path="/mentor-login" element={<Home />} />
 
         <Route path="/circles/:slug" element={<CirclePage />} />
+
+        {/* Admin portal — no public link, JWT-gated internally */}
+        <Route path="/admin" element={<AdminLogin />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
         <Route path="/mentor-onboarding" element={<MentorOnboardingPage />} />
         <Route path="/mentee-onboarding" element={<MenteeOnboardingPage />} />

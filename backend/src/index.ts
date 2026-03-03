@@ -8,6 +8,7 @@ import mentorRoutes from './modules/mentors/mentors.routes';
 import bookingRoutes from './modules/bookings/bookings.routes';
 import userRoutes from './modules/users/users.routes';
 import circleRoutes from './modules/circles/circles.routes';
+import adminRoutes from './modules/admin/admin.routes';
 import { connectMongoDB } from './config/mongodb';
 
 dotenv.config();
@@ -22,7 +23,7 @@ app.use(
         origin: FRONTEND_URL,
         credentials: true, // allow cookies (Appwrite session)
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization', 'X-Appwrite-Session'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Appwrite-Session', 'x-admin-token'],
     })
 );
 app.use(express.json());
@@ -45,6 +46,7 @@ app.use('/api/mentors', mentorRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/circles', circleRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ── 404 Handler ─────────────────────────────────────────────────────────────
 app.use((_req, res) => {

@@ -72,7 +72,7 @@ const MentorSchema = new Schema<IMentor>({
     badge: { type: String, default: '' },
     badgeType: { type: String, default: 'default' },
     topContributor: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
+    isActive: { type: Boolean, default: false },   // requires admin approval to appear on listing
     linkedIn: { type: String, default: '' },
     twitter: { type: String, default: '' },
     experience: [ExperienceSchema],

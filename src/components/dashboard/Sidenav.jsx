@@ -1,9 +1,12 @@
 import React from 'react';
 import { Menu, X, TrendingUp, Users, User, Target, Calendar, MessageSquare } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../utils/AuthContext';
+
 
 const Sidenav = ({ sidebarOpen, setSidebarOpen, currentRoute = '/dashboard' }) => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -33,11 +36,11 @@ const Sidenav = ({ sidebarOpen, setSidebarOpen, currentRoute = '/dashboard' }) =
     }
   };
 
-  const handleLogout = () => {
-    // Add logout logic here
-    console.log('Logout clicked');
-    navigate('/login');
+  const handleLogout = async () => {
+    localStorage.removeItem('dashboardType');
+    await logout(navigate);
   };
+
 
   return (
     <>
