@@ -378,7 +378,7 @@ function Listing() {
                     <div
                       key={mentor.id}
                       onClick={() => handleCardClick(mentor)}
-                      className="bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-lg shadow-slate-200/20 hover:shadow-xl hover:-translate-y-2 transition-all duration-300 cursor-pointer group flex flex-col h-full relative overflow-hidden"
+                      className="bg-white rounded-2xl p-5 border border-slate-100 shadow-md shadow-slate-200/30 hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col h-full relative overflow-hidden"
                     >
                       {/* Availability Badge */}
                       {mentor.badge && (
@@ -394,7 +394,7 @@ function Listing() {
 
                       {/* Image Section */}
                       <div className="relative mb-6">
-                        <div className="aspect-[4/3] rounded-3xl overflow-hidden bg-slate-100 shadow-inner">
+                        <div className="aspect-[4/3] rounded-2xl overflow-hidden bg-slate-100 shadow-inner">
                           <img
                             src={mentor.image}
                             alt={mentor.name}
@@ -416,10 +416,10 @@ function Listing() {
                               </h3>
                               <span className="text-xl filter grayscale group-hover:grayscale-0 transition-all">{mentor.country}</span>
                             </div>
-                            <p className="text-sm font-medium text-slate-500 flex items-center gap-1.5">
-                              <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md text-xs font-bold">{mentor.role}</span>
-                              <span>@</span>
-                              <span className="font-bold text-slate-700">{mentor.company}</span>
+                              <p className="text-sm font-medium text-slate-500 flex items-center gap-1.5 mt-1">
+                                <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-xs font-bold border border-blue-100">{mentor.role}</span>
+                                <span className="text-slate-300">@</span>
+                                <span className="font-bold text-slate-800">{mentor.company}</span>
                             </p>
                           </div>
                           <div className="flex flex-col items-end">
@@ -430,15 +430,15 @@ function Listing() {
                           </div>
                         </div>
 
-                        <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between">
+                          <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
                           <div className="flex flex-col">
                             <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Experience</span>
-                            <span className="text-sm font-bold text-slate-700">{mentor.experience}</span>
+                            <span className="text-sm font-bold text-slate-900">{mentor.experience}</span>
                           </div>
                           <div className="flex flex-col items-end">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Hourly</span>
-                            <div className="flex items-baseline">
-                              <span className="text-lg font-bold text-slate-900">${mentor.hourlyCharge}</span>
+                            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Hourly Rate</span>
+                            <div className="flex items-baseline gap-0.5">
+                              <span className="text-xl font-bold text-blue-600">${mentor.hourlyCharge}</span>
                               <span className="text-xs font-medium text-slate-400">/hr</span>
                             </div>
                           </div>

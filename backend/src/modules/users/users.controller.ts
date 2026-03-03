@@ -118,29 +118,46 @@ export const completeMentorOnboarding = async (req: Request, res: Response, next
         const userId = req.currentUser!.$id;
         const userName = req.currentUser!.name || '';
         const {
-            // Step 1 — Expertise
-            primaryField, expertise, technicalSpecialties, yearsOfExperience,
-            // Step 2 — Credentials
-            education, certifications, notableAchievements,
-            location, country,
-            // Step 3 — Teaching Style
-            teachingStyle, availabilityHours, communicationPreferences,
-            // Step 4 — Professional Detail
-            hourlyRate, bio,
-            linkedinProfile, portfolioUrl,
-            // Name fields (from Bio-Step1.jsx if used)
-            firstName, lastName, company, title, language,
+            firstName, lastName,
+            title, company, location, language,
+            bio,
+            experience,
+            skills,
+            industry,
+            yearsOfExperience,
+            education,
+            hourlyRate,
+            linkedIn, twitter,
+            avatarUrl,
+            // Legacy fields kept for backward compat
+            primaryField, expertise, technicalSpecialties,
+            linkedinProfile, country,
         } = req.body;
 
         const fullName = `${firstName || ''} ${lastName || ''}`.trim() || userName;
 
-        // Parse hourly rate — could be a value like "basic_20" from pricingTiers or a plain number
+        // Parse hourly rate
         let parsedRate = 0;
         if (typeof hourlyRate === 'number') {
             parsedRate = hourlyRate;
         } else if (typeof hourlyRate === 'string') {
             const match = hourlyRate.match(/\d+/);
             if (match) parsedRate = parseInt(match[0]);
+        }
+
+        // Merge skills from old or new format
+        const mergedSkills: string[] = [
+            ...(Array.isArray(skills) ? skills : []),
+            ...(Array.isArray(expertise) ? expertise : []),
+            ...(Array.isArray(technicalSpecialties) ? technicalSpecialties : []),
+        ].filter(Boolean);
+
+        // Education — accept both new object { degree, institution } and old array format
+        let eduObj = { degree: '', institution: '' };
+        if (education && typeof education === 'object' && !Array.isArray(education)) {
+            eduObj = { degree: education.degree || '', institution: education.institution || '' };
+        } else if (Array.isArray(education) && education.length > 0) {
+            eduObj = { degree: education[0], institution: '' };
         }
 
         // Upsert mentor doc
@@ -153,27 +170,26 @@ export const completeMentorOnboarding = async (req: Request, res: Response, next
                 company: company || '',
                 bio: bio || '',
                 location: typeof location === 'object'
-                    ? `${location.state || ''}, ${location.continent || ''}`.trim().replace(/^,\s*/, '')
+                    ? `${(location as any).state || ''}, ${(location as any).continent || ''}`.trim().replace(/^,\s*/, '')
                     : location || '',
                 country: country || '',
                 language: language || 'English',
-                industry: primaryField || '',
-                skills: [
-                    ...(expertise || []),
-                    ...(technicalSpecialties || []),
-                ].filter(Boolean),
+                industry: industry || primaryField || '',
+                skills: mergedSkills,
                 yearsOfExperience: Number(yearsOfExperience) || 0,
                 hourlyRate: parsedRate,
+                experience: Array.isArray(experience)
+                    ? experience.filter((e: any) => e.title && e.company)
+                    : [],
+                education: eduObj,
                 rating: 0,
                 reviewCount: 0,
                 badge: 'New',
                 badgeType: 'default',
-                isActive: true,
-                linkedIn: linkedinProfile || '',
-                education: Array.isArray(education) && education.length > 0
-                    ? { degree: education[0], institution: notableAchievements || '' }
-                    : { degree: '', institution: '' },
-                // Certifications go into bio context or a future attribute
+                isActive: false,   // requires admin approval
+                linkedIn: linkedIn || linkedinProfile || '',
+                twitter: twitter || '',
+                avatarUrl: avatarUrl || '',
             },
             { upsert: true, new: true }
         );
