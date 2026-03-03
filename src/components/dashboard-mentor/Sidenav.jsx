@@ -1,13 +1,10 @@
 import React from 'react';
 import { Menu, X, LayoutDashboard, Users, TrendingUp, Calendar, MessageSquare } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../utils/AuthContext';
-
 
 const Sidenav = ({ sidebarOpen, setSidebarOpen, currentRoute = '/dashboard_mentor' }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
   
   // Use actual current location instead of prop for active state
   const actualCurrentRoute = location.pathname;
@@ -40,11 +37,11 @@ const Sidenav = ({ sidebarOpen, setSidebarOpen, currentRoute = '/dashboard_mento
     }
   };
 
-  const handleLogout = async () => {
-    localStorage.removeItem('dashboardType');
-    await logout(navigate);
+  const handleLogout = () => {
+    // Add logout logic here
+    console.log('Logout clicked');
+    navigate('/login');
   };
-
 
   return (
     <>
