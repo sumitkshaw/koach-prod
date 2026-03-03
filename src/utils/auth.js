@@ -6,17 +6,18 @@ import { auth } from './firebase';
 import { sendPasswordResetEmail, confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
 
 // ── Get current Firebase user (sync) ────────────────────────────────────────
+// Always returns a Promise so callers can safely .then() it.
 export const getCurrentUser = () => {
   const user = auth.currentUser;
-  if (!user) return null;
-  return {
+  if (!user) return Promise.resolve(null);
+  return Promise.resolve({
     $id: user.uid,
     uid: user.uid,
     email: user.email,
     name: user.displayName || '',
     emailVerification: user.emailVerified,
     avatarUrl: user.photoURL || '',
-  };
+  });
 };
 
 // ── Check if current user's email is verified ──────────────────────────────

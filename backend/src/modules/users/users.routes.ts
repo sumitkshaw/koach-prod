@@ -7,6 +7,7 @@ import {
     completeMenteeOnboarding,
     completeMentorOnboarding,
     getOnboardingStatus,
+    checkPhoneAvailability,
 } from './users.controller';
 
 const router = Router();
@@ -17,5 +18,7 @@ router.post('/profile', requireAuth, upsertProfile);
 router.patch('/profile', requireAuth, updateProfile);
 router.post('/complete-mentee-onboarding', requireAuth, completeMenteeOnboarding);
 router.post('/complete-mentor-onboarding', requireAuth, completeMentorOnboarding);
+// No auth required — this is checked before the account exists
+router.post('/check-phone', checkPhoneAvailability);
 
 export default router;

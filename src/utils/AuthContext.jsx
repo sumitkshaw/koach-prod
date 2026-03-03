@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }) => {
 
   // ── Auth actions exposed to all pages via useAuth() ─────────────────────────
 
-  const signup = async (name, email, password, userType = 'mentee') => {
+  const signup = async (name, email, password, userType = 'mentee', phone = '') => {
     const firebaseUser = await authService.signup(name, email, password);
     const nameParts = name.split(' ');
     await createUserProfile({
@@ -58,6 +58,7 @@ export const AuthProvider = ({ children }) => {
       appwriteUserId: firebaseUser.uid,
       userType,
       email,
+      phone,
       firstName: nameParts[0] || '',
       lastName: nameParts.slice(1).join(' ') || '',
     });
@@ -66,7 +67,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = (email, password) => authService.login(email, password);
 
-  const loginWithGoogle = async (navigate, isSignup = false, userType = 'mentee') => {
+  const loginWithGoogle = async (navigate, isSignup = false, userType = 'mentee', phone = '') => {
     const firebaseUser = await authService.loginWithGoogle();
     const nameParts = (firebaseUser.displayName || '').split(' ');
     await createUserProfile({
@@ -74,6 +75,7 @@ export const AuthProvider = ({ children }) => {
       appwriteUserId: firebaseUser.uid,
       userType,
       email: firebaseUser.email || '',
+      phone,
       firstName: nameParts[0] || '',
       lastName: nameParts.slice(1).join(' ') || '',
       avatarUrl: firebaseUser.photoURL || '',

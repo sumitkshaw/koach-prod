@@ -12,6 +12,7 @@ export interface IUserProfile extends Document {
     firstName: string;
     lastName: string;
     email: string;
+    phone: string;               // Verified phone number (E.164 format)
     location: string;
     country: string;
     avatarUrl: string;
@@ -45,6 +46,7 @@ const UserProfileSchema = new Schema<IUserProfile>({
     firstName: { type: String, default: '' },
     lastName: { type: String, default: '' },
     email: { type: String, default: '' },
+    phone: { type: String, default: '' },
     location: { type: String, default: '' },
     country: { type: String, default: '' },
     avatarUrl: { type: String, default: '' },

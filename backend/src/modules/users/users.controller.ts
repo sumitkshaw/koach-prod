@@ -198,6 +198,37 @@ export const completeMentorOnboarding = async (req: Request, res: Response, next
     }
 };
 
+// ── POST /api/users/check-phone ──────────────────────────────────────────────
+// Check if a phone number + userType combo is available for signup.
+// Rules: same phone CAN be used for a mentor AND a mentee account,
+// but cannot create two mentee OR two mentor accounts with the same number.
+export const checkPhoneAvailability = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const { phone, userType } = req.body as { phone: string; userType: string };
+
+        if (!phone || !userType) {
+            res.status(400).json({ error: 'phone and userType are required' });
+            return;
+        }
+
+        // Normalise: strip spaces and dashes
+        const normalised = phone.replace(/[\s\-]/g, '');
+
+        const existing = await UserProfile.findOne({ phone: normalised, userType }).lean();
+
+        if (existing) {
+            res.status(200).json({
+                allowed: false,
+                reason: `A ${userType} account already exists with this phone number.`,
+            });
+        } else {
+            res.status(200).json({ allowed: true });
+        }
+    } catch (err) {
+        next(err);
+    }
+};
+
 // ── GET /api/users/onboarding-status ────────────────────────────────────────
 export const getOnboardingStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
