@@ -36,14 +36,14 @@ export default function LoginForm({ onSwitchToSignup, onClose, initialUserType =
         };
 
         try {
-            const type = userType === 'mentor' ? 'mentor' : undefined;
-            // logic
+            const type = userType === 'mentor' ? 'mentor' : 'mentee';
             localStorage.setItem("welcome_toast", "Welcome Back!");
             await login(email, password, navigate, trackedSetError, type);
-            if (!loginFailed && onClose) {
-                // showToast("Welcome Back!");
-                onClose();
-            } else if (loginFailed) {
+            if (!loginFailed) {
+                localStorage.setItem('dashboardType', type);
+                if (onClose) onClose();
+                navigate(type === 'mentor' ? '/dashboard_mentor' : '/dashboard');
+            } else {
                 localStorage.removeItem("welcome_toast");
             }
         } catch (err) {
@@ -69,7 +69,9 @@ export default function LoginForm({ onSwitchToSignup, onClose, initialUserType =
     const handleGoogleLogin = async () => {
         try {
             localStorage.setItem("welcome_toast", "Welcome Back!");
-            await loginWithGoogle(navigate, false, userType === 'mentor' ? 'mentor' : undefined);
+            await loginWithGoogle(navigate, false, userType);
+            // Close modal after successful Google login
+            if (onClose) onClose();
         } catch (error) {
             console.error(error);
             localStorage.removeItem("welcome_toast");
@@ -79,7 +81,8 @@ export default function LoginForm({ onSwitchToSignup, onClose, initialUserType =
     const handleLinkedInLogin = async () => {
         try {
             localStorage.setItem("welcome_toast", "Welcome Back!");
-            await loginWithLinkedIn(navigate, false, userType === 'mentor' ? 'mentor' : undefined);
+            await loginWithLinkedIn(navigate, false, userType);
+            if (onClose) onClose();
         } catch (error) {
             console.error(error);
             localStorage.removeItem("welcome_toast");

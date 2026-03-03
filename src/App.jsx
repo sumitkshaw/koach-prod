@@ -6,11 +6,8 @@ import Resources from "./pages/Resources";
 import About from "./pages/About";
 import Privacy from "./pages/Privacy";
 import FAQ from "./pages/Faq";
-import LoginPage from "./pages/LoginPage";
-import SignUpPage from "./pages/SignUpPage";
-
-import MentorLoginPage from "./pages/MentorLogin";
-import MentorSignupPage from "./pages/MentorSignup";
+import ModalRedirect from "./components/ModalRedirect";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import MentorOnboardingPage from "./pages/MentorOnboardingPage";
 import MenteeOnboardingPage from "./pages/MenteeOnboardingPage";
@@ -94,11 +91,11 @@ function AppContent() {
         />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignUpPage />} />
-
-        <Route path="/mentor-signup" element={<MentorSignupPage />} />
-        <Route path="/mentor-login" element={<MentorLoginPage />} />
+        {/* Auth routes — ModalContext auto-opens the right modal from the URL */}
+        <Route path="/login" element={<Home />} />
+        <Route path="/signup" element={<Home />} />
+        <Route path="/mentor-signup" element={<Home />} />
+        <Route path="/mentor-login" element={<Home />} />
 
         <Route path="/circles/research" element={<DemoCircle />} />
 
@@ -130,21 +127,21 @@ function AppContent() {
         <Route path="/welcome" element={<Welcome />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/faq" element={<FAQ />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/dashboard/goals" element={<Goals />} />
-        <Route path="/dashboard/sessions" element={<Sessions />} />
-        <Route path="/dashboard/messages" element={<Messages />} />
-        <Route path="/dashboard/mentors" element={<Mentors />} />
-        <Route path="/dashboard/settings" element={<Settings2 />} />
+        <Route path="/dashboard" element={<ProtectedRoute role="mentee"><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard/goals" element={<ProtectedRoute role="mentee"><Goals /></ProtectedRoute>} />
+        <Route path="/dashboard/sessions" element={<ProtectedRoute role="mentee"><Sessions /></ProtectedRoute>} />
+        <Route path="/dashboard/messages" element={<ProtectedRoute role="mentee"><Messages /></ProtectedRoute>} />
+        <Route path="/dashboard/mentors" element={<ProtectedRoute role="mentee"><Mentors /></ProtectedRoute>} />
+        <Route path="/dashboard/settings" element={<ProtectedRoute role="mentee"><Settings2 /></ProtectedRoute>} />
 
         <Route path="*" element={<NotFound />} />
 
-        <Route path="/dashboard_mentor" element={<Dashmentor />} />
-        <Route path="/dashboard_mentor/earnings" element={<Earnings />} />
-        <Route path="/dashboard_mentor/calendar" element={<Calen />} />
-        <Route path="/dashboard_mentor/messages" element={<Message />} />
-        <Route path="/dashboard_mentor/mentees" element={<Mentees />} />
-        <Route path="/dashboard_mentor/settings" element={<Settings1 />} />
+        <Route path="/dashboard_mentor" element={<ProtectedRoute role="mentor"><Dashmentor /></ProtectedRoute>} />
+        <Route path="/dashboard_mentor/earnings" element={<ProtectedRoute role="mentor"><Earnings /></ProtectedRoute>} />
+        <Route path="/dashboard_mentor/calendar" element={<ProtectedRoute role="mentor"><Calen /></ProtectedRoute>} />
+        <Route path="/dashboard_mentor/messages" element={<ProtectedRoute role="mentor"><Message /></ProtectedRoute>} />
+        <Route path="/dashboard_mentor/mentees" element={<ProtectedRoute role="mentor"><Mentees /></ProtectedRoute>} />
+        <Route path="/dashboard_mentor/settings" element={<ProtectedRoute role="mentor"><Settings1 /></ProtectedRoute>} />
 
         <Route path="/listing" element={<Listing />} />
         <Route path="/listing/:mentorId" element={<Demo />} />

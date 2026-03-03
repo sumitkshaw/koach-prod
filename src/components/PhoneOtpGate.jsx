@@ -3,7 +3,7 @@
 // Same phone allowed for mentee + mentor, but not two of the same userType.
 
 import { useState, useEffect, useRef } from 'react';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+import { RecaptchaVerifier, signInWithPhoneNumber, signOut } from 'firebase/auth';
 import { Phone, ArrowRight, Shield, RefreshCw, ChevronLeft } from 'lucide-react';
 import { auth } from '../utils/firebase';
 import api from '../services/api';
@@ -32,6 +32,7 @@ export default function PhoneOtpGate({ userType, onVerified }) {
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const recaptchaRef = useRef(null);
   const verifierRef = useRef(null);
@@ -88,6 +89,7 @@ export default function PhoneOtpGate({ userType, onVerified }) {
       const verifier = initRecaptcha();
       const result = await signInWithPhoneNumber(auth, fullPhone, verifier);
       setConfirmationResult(result);
+      setOtpSent(true);
       setStep('otp');
       startResendTimer();
     } catch (err) {
@@ -137,8 +139,12 @@ export default function PhoneOtpGate({ userType, onVerified }) {
     setLoading(true);
     try {
       await confirmationResult.confirm(code);
+      // ✅ Immediately sign out the temp phone-only Firebase session.
+      // We just needed OTP as a proof of ownership — the real account
+      // (email/password or Google) is created in the next step.
+      await signOut(auth);
+
       const fullPhone = `${countryCode}${phone.replace(/\D/g, '')}`;
-      // Store in sessionStorage so signup form can use it
       sessionStorage.setItem('koach_verified_phone', fullPhone);
       onVerified(fullPhone);
     } catch (err) {
@@ -170,84 +176,69 @@ export default function PhoneOtpGate({ userType, onVerified }) {
       <div id="recaptcha-container" ref={recaptchaRef} />
 
       {step === 'phone' ? (
-        <div className="space-y-5">
-          {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-              <Phone className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900">Verify your number</h3>
-              <p className="text-xs text-slate-500">We'll send a one-time code to confirm it's you</p>
-            </div>
-          </div>
+        <div className="space-y-4">
+          <p className="text-gray-500 text-sm text-center -mt-2 mb-4">
+            We'll send a code to confirm your number
+          </p>
 
-          {/* Phone input */}
-          <div>
-            <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">Phone Number</label>
-            <div className="flex gap-2">
-              <select
+          <div className="flex gap-2">
+            <div className="relative w-1/3">
+               <select
                 value={countryCode}
                 onChange={e => setCountryCode(e.target.value)}
-                className="px-3 py-3 border-2 border-gray-200 rounded-lg text-gray-700 bg-white focus:border-blue-500 focus:outline-none text-sm font-medium"
+                className="w-full pl-3 pr-2 py-2.5 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all appearance-none bg-white text-gray-700"
               >
                 {COUNTRY_CODES.map(c => (
                   <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
                 ))}
               </select>
+              <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center px-1 text-gray-400">
+                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                </svg>
+              </div>
+            </div>
+            
+            <div className="relative flex-1">
+              <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="tel"
                 value={phone}
                 onChange={e => setPhone(e.target.value)}
-                placeholder="9876543210"
-                className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:border-blue-500 focus:outline-none text-sm font-medium"
+                placeholder="Phone number"
+                className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all placeholder-gray-400 text-gray-700"
                 onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
               />
             </div>
           </div>
 
-          {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+          {error && (
+            <div className="flex items-center text-red-500 text-xs bg-red-50 p-2 rounded">
+              <Shield size={14} className="mr-1.5 flex-shrink-0" />
+              {error}
+            </div>
+          )}
 
           <button
             onClick={handleSendOtp}
             disabled={loading || !phone}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-md text-sm disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center mt-2"
           >
-            {loading ? (
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            ) : (
-              <>Send OTP <ArrowRight className="w-4 h-4" /></>
-            )}
+            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Send OTP'}
           </button>
-
-          <p className="text-center text-xs text-slate-400">
-            Your number is only used for account security and won't be shared.
-          </p>
         </div>
       ) : (
-        <div className="space-y-5">
-          {/* Header */}
-          <button
-            onClick={() => { setStep('phone'); setError(''); setOtp(['','','','','','']); }}
-            className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2 -ml-1"
-          >
-            <ChevronLeft className="w-4 h-4" /> Change number
-          </button>
-
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <Shield className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <h3 className="font-bold text-slate-900">Enter OTP</h3>
-              <p className="text-xs text-slate-500">
-                Sent to <span className="font-semibold text-slate-700">{countryCode} {phone}</span>
-              </p>
-            </div>
+        <div className="space-y-4">
+          {/* Green success banner */}
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg px-4 py-3 text-sm font-medium">
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <span>OTP sent to <strong>{countryCode} {phone}</strong></span>
           </div>
 
           {/* 6-digit OTP boxes */}
-          <div className="flex gap-2 justify-between" onPaste={handleOtpPaste}>
+          <div className="flex gap-2 justify-center" onPaste={handleOtpPaste}>
             {otp.map((digit, i) => (
               <input
                 key={i}
@@ -258,28 +249,33 @@ export default function PhoneOtpGate({ userType, onVerified }) {
                 value={digit}
                 onChange={e => handleOtpChange(i, e.target.value)}
                 onKeyDown={e => handleOtpKeyDown(i, e)}
-                className={`w-12 h-12 text-center text-xl font-bold border-2 rounded-xl focus:outline-none transition-all
+                className={`w-12 h-14 text-center text-2xl font-bold border-2 rounded-xl focus:outline-none transition-all
                   ${digit ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700'}
-                  focus:border-blue-500`}
+                  focus:border-blue-500 focus:ring-2 focus:ring-blue-100`}
               />
             ))}
           </div>
 
-          {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+          {error && (
+            <div className="flex items-center text-red-500 text-xs bg-red-50 p-2 rounded">
+              <Shield size={14} className="mr-1.5 flex-shrink-0" />
+              {error}
+            </div>
+          )}
 
           <button
             onClick={handleVerifyOtp}
             disabled={loading || otp.join('').length !== 6}
-            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-md text-sm disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center mt-2"
           >
-            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Verify & Continue'}
+            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Verify Code'}
           </button>
 
-          <div className="text-center">
+          <div className="text-center mt-3">
             {resendTimer > 0 ? (
-              <p className="text-xs text-slate-400">Resend in {resendTimer}s</p>
+              <p className="text-xs text-gray-400">Resend code in {resendTimer}s</p>
             ) : (
-              <button onClick={handleResend} className="text-sm text-blue-600 hover:underline font-medium">
+              <button onClick={handleResend} className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium">
                 Resend OTP
               </button>
             )}

@@ -1,29 +1,59 @@
-import React, { createContext, useContext, useState } from 'react';
+// ModalContext.jsx — syncs modal state with URL
+// /signup → signup modal, /login → login modal, /mentor-signup → mentor-signup modal
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const ModalContext = createContext();
 
+// Map modal name → URL path, and vice versa
+const MODAL_TO_PATH = {
+  'login': '/login',
+  'signup': '/signup',
+  'mentor-login': '/mentor-login',
+  'mentor-signup': '/mentor-signup',
+};
+const PATH_TO_MODAL = Object.fromEntries(
+  Object.entries(MODAL_TO_PATH).map(([k, v]) => [v, k])
+);
+
 export function ModalProvider({ children }) {
-    const [activeModal, setActiveModal] = useState(null);
+  const [activeModal, setActiveModal] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    const openModal = (modalName) => {
-        setActiveModal(modalName);
-    };
+  // When URL changes (e.g. user navigates directly to /login), open the right modal
+  useEffect(() => {
+    const modal = PATH_TO_MODAL[location.pathname];
+    if (modal) {
+      setActiveModal(modal);
+    }
+  }, [location.pathname]);
 
-    const closeModal = () => {
-        setActiveModal(null);
-    };
+  const openModal = (modalName) => {
+    setActiveModal(modalName);
+    const path = MODAL_TO_PATH[modalName];
+    if (path && location.pathname !== path) {
+      navigate(path, { replace: false });
+    }
+  };
 
-    return (
-        <ModalContext.Provider value={{ activeModal, openModal, closeModal }}>
-            {children}
-        </ModalContext.Provider>
-    );
+  const closeModal = () => {
+    setActiveModal(null);
+    // If we're on an auth modal URL, go back to home
+    if (PATH_TO_MODAL[location.pathname]) {
+      navigate('/', { replace: true });
+    }
+  };
+
+  return (
+    <ModalContext.Provider value={{ activeModal, openModal, closeModal }}>
+      {children}
+    </ModalContext.Provider>
+  );
 }
 
 export function useModal() {
-    const context = useContext(ModalContext);
-    if (!context) {
-        throw new Error('useModal must be used within a ModalProvider');
-    }
-    return context;
+  const context = useContext(ModalContext);
+  if (!context) throw new Error('useModal must be used within a ModalProvider');
+  return context;
 }

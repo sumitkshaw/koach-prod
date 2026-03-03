@@ -27,19 +27,23 @@ export const AuthProvider = ({ children }) => {
           avatarUrl: firebaseUser.photoURL || '',
         };
         setUser(normalizedUser);
-        // Upsert MongoDB UserProfile with all Firebase user data
-        try {
-          const nameParts = (firebaseUser.displayName || '').split(' ');
-          await createUserProfile({
-            userId: firebaseUser.uid,
-            appwriteUserId: firebaseUser.uid,
-            userType: 'mentee',
-            email: firebaseUser.email || '',
-            firstName: nameParts[0] || '',
-            lastName: nameParts.slice(1).join(' ') || '',
-            avatarUrl: firebaseUser.photoURL || '',
-          });
-        } catch { /* already exists — fine */ }
+        // ⚠️  Only create a MongoDB profile for email-based accounts.
+        // Phone-only Firebase sessions (OTP temp sessions) have no email
+        // and must NEVER create a profile. We also sign them out in PhoneOtpGate.
+        if (firebaseUser.email) {
+          try {
+            const nameParts = (firebaseUser.displayName || '').split(' ');
+            await createUserProfile({
+              userId: firebaseUser.uid,
+              appwriteUserId: firebaseUser.uid,
+              userType: 'mentee',
+              email: firebaseUser.email || '',
+              firstName: nameParts[0] || '',
+              lastName: nameParts.slice(1).join(' ') || '',
+              avatarUrl: firebaseUser.photoURL || '',
+            });
+          } catch { /* already exists — fine */ }
+        }
       } else {
         setUser(null);
       }
@@ -70,18 +74,31 @@ export const AuthProvider = ({ children }) => {
   const loginWithGoogle = async (navigate, isSignup = false, userType = 'mentee', phone = '') => {
     const firebaseUser = await authService.loginWithGoogle();
     const nameParts = (firebaseUser.displayName || '').split(' ');
+
+    // Always upsert a profile. On signup, set the explicitly chosen role.
+    // On login, we still pass userType (from the Student/Mentor tab the user clicked).
+    // createUserProfile is an upsert — if one already exists it won't overwrite.
     await createUserProfile({
       userId: firebaseUser.uid,
       appwriteUserId: firebaseUser.uid,
-      userType,
+      userType,            // 'mentor' or 'mentee' — determined by modal tab
       email: firebaseUser.email || '',
       phone,
       firstName: nameParts[0] || '',
       lastName: nameParts.slice(1).join(' ') || '',
       avatarUrl: firebaseUser.photoURL || '',
     });
+
+    // Store the active dashboard role so ProtectedRoute and Navigation know
+    localStorage.setItem('dashboardType', userType);
+
     if (navigate) {
-      navigate(userType === 'mentor' ? '/mentor-onboarding' : '/dashboard');
+      if (isSignup && userType === 'mentor') {
+        // Brand-new mentor → send to onboarding first
+        navigate('/mentor-onboarding');
+      } else {
+        navigate(userType === 'mentor' ? '/dashboard_mentor' : '/dashboard');
+      }
     }
     return firebaseUser;
   };
