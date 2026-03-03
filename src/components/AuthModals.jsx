@@ -7,7 +7,7 @@ import LoginForm from './auth/LoginForm';
 import SignUpForm from './auth/SignUpForm';
 
 export default function AuthModals() {
-    const { activeModal, closeModal, openModal } = useModal();
+    const { activeModal, closeModal, openModal, silentClose } = useModal();
 
     const isLoginNode = activeModal === 'login' || activeModal === 'mentor-login';
     const isSignupNode = activeModal === 'signup' || activeModal === 'mentor-signup';
@@ -19,17 +19,28 @@ export default function AuthModals() {
 
     const handleSignupClose = () => {
         if (phoneVerified) {
-            // Show in-modal warning before closing
             setShowExitWarning(true);
         } else {
-            handleSignupForceClose();
+            // X button — navigate away (user is abandoning)
+            setPhoneVerified(false);
+            setShowExitWarning(false);
+            closeModal();
         }
     };
 
+    // Called when user clicks "Exit anyway" from the warning — also navigates away
     const handleSignupForceClose = () => {
         setPhoneVerified(false);
         setShowExitWarning(false);
         closeModal();
+    };
+
+    // Called after a SUCCESSFUL signup — modal clears silently, navigation to
+    // /mentor-onboarding or /dashboard is already triggered by SignUpForm
+    const handleSignupSuccessClose = () => {
+        setPhoneVerified(false);
+        setShowExitWarning(false);
+        silentClose();
     };
 
     const handlePhoneVerified = useCallback(() => {
@@ -87,7 +98,7 @@ export default function AuthModals() {
                     <SignUpForm
                         initialUserType={initialUserType}
                         onSwitchToLogin={handleSwitchToLogin}
-                        onClose={handleSignupForceClose}
+                        onClose={handleSignupSuccessClose}
                         onPhoneVerified={handlePhoneVerified}
                     />
                 </>

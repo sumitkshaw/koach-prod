@@ -48,8 +48,9 @@ export default function SignUpForm({ onSwitchToLogin, onClose, initialUserType =
       localStorage.setItem('welcome_toast', `Welcome to Koach, ${name}!`);
       await signup(name, email, password, userType, verifiedPhone);
       localStorage.setItem('dashboardType', userType);
-      if (onClose) onClose();
+      // Navigate FIRST, then silently close modal so navigate('/') doesn't overwrite
       navigate(userType === 'mentor' ? '/mentor-onboarding' : '/dashboard');
+      if (onClose) onClose();
     } catch (err) {
       console.error('Sign-up error:', err);
       setError(err?.message || 'Sign-up failed. Please try again.');
@@ -62,7 +63,10 @@ export default function SignUpForm({ onSwitchToLogin, onClose, initialUserType =
   const handleGoogleSignUp = async () => {
     try {
       localStorage.setItem('welcome_toast', 'Welcome to Koach!');
+      // loginWithGoogle navigates internally — DON'T call onClose() after,
+      // it would trigger navigate('/') and overwrite the mentor-onboarding redirect.
       await loginWithGoogle(navigate, true, userType, verifiedPhone);
+      // Silently close modal state only (no navigation side-effect)
       if (onClose) onClose();
     } catch (err) {
       console.error('Google sign-up error:', err);

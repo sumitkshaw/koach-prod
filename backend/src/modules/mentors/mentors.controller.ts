@@ -51,7 +51,21 @@ export const getMentorById = async (req: Request, res: Response, next: NextFunct
     }
 };
 
-// ── POST /api/mentors (protected) ────────────────────────────────────────────
+// ── GET /api/mentors/me (protected) ──────────────────────────────────────────
+export const getMyMentorProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+        const currentUser = req.currentUser!;
+        const mentor = await Mentor.findOne({ appwriteUserId: currentUser.$id }).lean();
+        if (!mentor) {
+            res.status(404).json({ error: 'Mentor profile not found — complete onboarding first' });
+            return;
+        }
+        res.status(200).json(mentor);
+    } catch (err) {
+        next(err);
+    }
+};
+
 export const createMentor = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
         const currentUser = req.currentUser!;
@@ -107,7 +121,13 @@ export const updateMentor = async (req: Request, res: Response, next: NextFuncti
             return;
         }
 
-        const allowedFields = ['title', 'bio', 'skills', 'hourlyRate', 'location', 'language', 'industry', 'avatarUrl', 'isActive', 'experience', 'education'];
+        const allowedFields = [
+            'title', 'bio', 'skills', 'hourlyRate',
+            'location', 'language', 'industry', 'avatarUrl',
+            'isActive', 'experience', 'education',
+            'company', 'linkedIn', 'twitter', 'yearsOfExperience',
+            'firstName', 'lastName', 'name',
+        ];
         const updates: Partial<IMentor> = {};
         for (const field of allowedFields) {
             if (req.body[field] !== undefined) (updates as any)[field] = req.body[field];

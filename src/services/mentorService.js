@@ -33,3 +33,12 @@ export const updateMentor = async (id, updates) => {
   const { data } = await api.patch(`/api/mentors/${id}`, updates);
   return data;
 };
+
+/**
+ * Get the currently logged-in mentor's own profile.
+ * Uses GET /api/mentors/me (protected).
+ */
+export const getMyMentorProfile = async () => {
+  const { data } = await api.get('/api/mentors/me');
+  return data;
+};

@@ -39,14 +39,18 @@ export function ModalProvider({ children }) {
 
   const closeModal = () => {
     setActiveModal(null);
-    // If we're on an auth modal URL, go back to home
+    // Only navigate home if we're still on an auth modal URL
     if (PATH_TO_MODAL[location.pathname]) {
       navigate('/', { replace: true });
     }
   };
 
+  // Silent version — closes modal state WITHOUT navigating.
+  // Use this after a successful form submission that already called navigate().
+  const silentClose = () => setActiveModal(null);
+
   return (
-    <ModalContext.Provider value={{ activeModal, openModal, closeModal }}>
+    <ModalContext.Provider value={{ activeModal, openModal, closeModal, silentClose }}>
       {children}
     </ModalContext.Provider>
   );

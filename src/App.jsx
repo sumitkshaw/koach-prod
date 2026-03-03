@@ -33,6 +33,7 @@ import NotFound from "./pages/NotFound";
 
 import Listing from "./pages/listing-booking/Listing.jsx";
 import Demo from "./pages/listing-booking/Demo.jsx";
+import CirclePage from "./pages/CirclePage.jsx";
 
 //Mentee Onboard
 import PastExp from "./pages/MenteeOnboard/PastExp";
@@ -97,7 +98,7 @@ function AppContent() {
         <Route path="/mentor-signup" element={<Home />} />
         <Route path="/mentor-login" element={<Home />} />
 
-        <Route path="/circles/research" element={<DemoCircle />} />
+        <Route path="/circles/:slug" element={<CirclePage />} />
 
         <Route path="/mentor-onboarding" element={<MentorOnboardingPage />} />
         <Route path="/mentee-onboarding" element={<MenteeOnboardingPage />} />
