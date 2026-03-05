@@ -20,7 +20,7 @@ export default function Footer() {
     // 
   ];
   return (
-    <div className='w-full bg-[#030917] py-8 mt-12'>
+    <div className='relative z-10 isolate w-full bg-[#030917] py-8 mt-12'>
       <div className='max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-0 mb-8'>
         <img src={logoWhite} className='mb-4 w-auto h-8 sm:h-10' />
         <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0'>
