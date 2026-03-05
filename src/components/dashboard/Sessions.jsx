@@ -1,345 +1,522 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronRight, Search, ChevronDown, ChevronUp, Clock, FileText, Calendar, Download, Plus, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Search, Clock, Calendar, Download, Plus, Loader2,
+  ChevronDown, ChevronUp, Video, FileText, CheckCircle2,
+  Star, Filter, ArrowUpRight, BookOpen, Zap
+} from 'lucide-react';
 import Navigation from '../Navigation';
 import Sidenav from './Sidenav';
 import Footer from '../Footer';
 import { getMenteeBookings } from '../../services/bookingService';
 import { useAuth } from '../../utils/AuthContext';
 
-const Sessions = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [expandedSessions, setExpandedSessions] = useState({});
-  const [pastSessions, setPastSessions] = useState([]);
-  const [upcomingSessions, setUpcomingSessions] = useState([]);
-  const [sessionNotes, setSessionNotes] = useState([]);
-  const [apiLoading, setApiLoading] = useState(true);
-  const { user } = useAuth();
+// ── Avatar colour helper ───────────────────────────────────────────────────────
+const AV_COLORS = [
+  'from-blue-400 to-indigo-500',
+  'from-emerald-400 to-teal-500',
+  'from-violet-400 to-purple-500',
+  'from-rose-400 to-pink-500',
+  'from-amber-400 to-orange-500',
+  'from-cyan-400 to-sky-500',
+];
+const avColor = (s = 'A') => AV_COLORS[s.charCodeAt(0) % AV_COLORS.length];
 
-  useEffect(() => {
-    if (!user?.$id) {
-      setApiLoading(false);
-      return;
-    }
-    const fetchBookings = async () => {
-      try {
-        const data = await getMenteeBookings(user.$id);
-        const docs = data.documents || [];
-        const now = new Date();
-        const upcoming = docs
-          .filter(d => new Date(d.sessionDate) > now && d.status !== 'cancelled')
-          .map(d => ({
-            id: d.$id,
-            title: `Session on ${new Date(d.sessionDate).toLocaleString()}`,
-            avatar: (d.menteeName || 'Me').slice(0, 2).toUpperCase(),
-            profile: 'View Booking',
-          }));
-        const past = docs
-          .filter(d => new Date(d.sessionDate) <= now || d.status === 'completed')
-          .map(d => ({
-            id: d.$id,
-            date: new Date(d.sessionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
-            mentorName: 'Mentor Session',
-            sessionType: d.notes || 'Session',
-            duration: `${d.duration} min`,
-            tags: ['Session'],
-            sessionNotes: d.notes ? [d.notes] : [],
-            attachments: [],
-            attendees: [],
-            status: d.status,
-          }));
-        setUpcomingSessions(upcoming);
-        setPastSessions(past);
-        setSessionNotes(upcoming.map((s, i) => ({ id: i + 1, text: s.title, notes: 'View Notes' })));
-      } catch (err) {
-        console.error('[Sessions] fetch error:', err);
-        // Keep empty arrays — graceful empty state
-      } finally {
-        setApiLoading(false);
-      }
-    };
-    fetchBookings();
-  }, [user]);
+// ── Tag colours ────────────────────────────────────────────────────────────────
+const TAG_COLORS = {
+  Performance:    'bg-yellow-50 text-yellow-700 border-yellow-100',
+  Leadership:     'bg-violet-50 text-violet-700 border-violet-100',
+  Career:         'bg-indigo-50 text-indigo-700 border-indigo-100',
+  Marketing:      'bg-rose-50 text-rose-700 border-rose-100',
+  Product:        'bg-blue-50 text-blue-700 border-blue-100',
+  Frontend:       'bg-cyan-50 text-cyan-700 border-cyan-100',
+  Design:         'bg-pink-50 text-pink-700 border-pink-100',
+  Session:        'bg-slate-50 text-slate-600 border-slate-100',
+};
+const tagColor = t => TAG_COLORS[t] || 'bg-slate-50 text-slate-600 border-slate-100';
 
-  // Demo data for when no real bookings exist yet
-  const demoSessionNotes = [
-    { id: 1, text: 'Andrea posted 3 activities to complete', notes: 'View Notes' },
-    { id: 2, text: 'Andrea posted 3 activities to complete', notes: 'View Notes' },
-  ];
-  const demoUpcoming = [
-    { id: 1, title: 'Andrea Watson at 3:00 pm', profile: 'View Profile', avatar: 'AW' },
-    { id: 2, title: 'Andrea Watson at 3:00 pm', profile: 'View Profile', avatar: 'AW' },
-  ];
-  const demoPast = [
-    {
-      id: 1, date: 'April 10th, 2024', mentorName: 'Mentor Session',
-      sessionType: 'Public Speaking Help', duration: '30 min',
-      tags: ['Performance', 'Leadership', 'Career', 'Marketing', 'Product'],
-      sessionNotes: ['Prepare, prepare, and prepare some more. Practice—a lot.'],
-      attachments: [{ name: 'More_Public_Speaking_Tips.pdf', icon: '📄' }],
-      attendees: [{ name: 'Andrea Watson', task: 'Watch Figma Tutorial on Auto Layout', dueDate: 'Due May 26', avatar: 'AW', link: 'Front End Development' }],
-    },
-  ];
+// ── Demo/fallback data ────────────────────────────────────────────────────────
+const DEMO_UPCOMING = [
+  {
+    id: 'u1', mentorName: 'Priya Nair', mentorRole: 'Staff Engineer @ Stripe',
+    avatar: 'P', plan: 'Pro', date: '2026-03-12', time: '10:00 AM', duration: 60,
+    topic: 'System design deep-dive',
+  },
+  {
+    id: 'u2', mentorName: 'Marcus Webb', mentorRole: 'Head of Product @ Monzo',
+    avatar: 'M', plan: 'Basic', date: '2026-03-20', time: '3:00 PM', duration: 45,
+    topic: 'Product roadmap review',
+  },
+];
 
-  const displayNotes = sessionNotes.length > 0 ? sessionNotes : (!apiLoading ? demoSessionNotes : []);
-  const displayUpcoming = upcomingSessions.length > 0 ? upcomingSessions : (!apiLoading ? demoUpcoming : []);
-  const displayPast = pastSessions.length > 0 ? pastSessions : (!apiLoading ? demoPast : []);
-  const displayPastFiltered = displayPast.filter(s =>
-    !searchTerm ||
-    s.date?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.sessionType?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+const DEMO_PAST = [
+  {
+    id: 'p1', mentorName: 'Priya Nair', date: 'March 5, 2026',
+    sessionType: 'TypeScript Generics & Advanced Patterns', duration: '60 min',
+    tags: ['Frontend', 'Career'],
+    sessionNotes: [
+      'Covered mapped types, conditional types and template literal types.',
+      'Action item: build a form validation library using Zod + TypeScript.',
+      'Next session we\'ll review the completed project.',
+    ],
+    attachments: [{ name: 'TypeScript_Advanced_Notes.pdf' }],
+    rating: 5,
+  },
+  {
+    id: 'p2', mentorName: 'Marcus Webb', date: 'February 22, 2026',
+    sessionType: 'Public Speaking & Presentation Skills', duration: '45 min',
+    tags: ['Leadership', 'Performance'],
+    sessionNotes: [
+      'Practised the opening hook — avoid starting with "Thank you for having me".',
+      'Rule of three: structure every talk around 3 key ideas.',
+      'Record yourself speaking and watch it back — highly effective.',
+    ],
+    attachments: [{ name: 'Presentation_Checklist.pdf' }],
+    rating: 4,
+  },
+  {
+    id: 'p3', mentorName: 'Yuki Tanaka', date: 'February 10, 2026',
+    sessionType: 'Machine Learning Fundamentals Q&A', duration: '60 min',
+    tags: ['Career', 'Product'],
+    sessionNotes: [
+      'Bias-variance tradeoff — memorise this for interviews.',
+      'Walkthrough of gradient descent with a hands-on notebook.',
+    ],
+    attachments: [],
+    rating: 5,
+  },
+];
 
-  const getTagColor = (tag) => {
-    const colors = {
-      Performance: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-      Leadership: 'bg-green-100 text-green-700 border-green-200',
-      Career: 'bg-purple-100 text-purple-700 border-purple-200',
-      Marketing: 'bg-pink-100 text-pink-700 border-pink-200',
-      Product: 'bg-blue-100 text-blue-700 border-blue-200',
-      Session: 'bg-blue-100 text-blue-700 border-blue-200',
-    };
-    return colors[tag] || 'bg-gray-100 text-gray-700 border-gray-200';
-  };
+// ── Stat Card ──────────────────────────────────────────────────────────────────
+const StatCard = ({ icon, label, value, sub, accent }) => (
+  <div className={`bg-white rounded-[2rem] p-5 border border-slate-100 shadow-lg shadow-slate-200/20 flex items-start gap-4`}>
+    <div className={`p-3 rounded-xl flex-shrink-0 ${accent}`}>{icon}</div>
+    <div>
+      <p className="text-2xl font-bold text-slate-900">{value}</p>
+      <p className="text-sm font-bold text-slate-700">{label}</p>
+      {sub && <p className="text-xs text-slate-400 font-medium mt-0.5">{sub}</p>}
+    </div>
+  </div>
+);
 
-  const toggleSessionExpansion = (sessionId) => {
-    setExpandedSessions(prev => ({ ...prev, [sessionId]: !prev[sessionId] }));
-  };
-
+// ── Upcoming Session Card ─────────────────────────────────────────────────────
+const UpcomingCard = ({ s }) => {
+  const days = Math.ceil((new Date(s.date) - new Date()) / 86400000);
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation/>
-      <Sidenav sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentRoute="/dashboard/sessions" />
+    <div className="bg-white rounded-[2rem] p-5 border border-slate-100 shadow-lg shadow-slate-200/20 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+      <div className="flex items-start gap-4">
+        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${avColor(s.avatar)} text-white font-bold text-base flex items-center justify-center shadow-md flex-shrink-0`}>
+          {s.avatar}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-slate-900 text-base">{s.mentorName}</h3>
+          <p className="text-xs text-slate-400 font-medium truncate">{s.mentorRole}</p>
+          <p className="text-xs text-slate-600 font-medium mt-2 italic">"{s.topic}"</p>
+        </div>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-xl flex-shrink-0
+          ${days <= 3 ? 'bg-rose-50 text-rose-600 border border-rose-100'
+          : days <= 7 ? 'bg-amber-50 text-amber-600 border border-amber-100'
+          : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+          {days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days}d`}
+        </span>
+      </div>
 
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setSidebarOpen(true)}
-        className="fixed top-20 left-4 z-30 lg:hidden bg-white p-2 rounded-xl shadow-lg border"
-      >
-      </button>
+      <div className="flex flex-wrap gap-2 mt-4">
+        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-xs font-bold">
+          <Calendar className="w-3 h-3" />
+          {new Date(s.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {s.time}
+        </span>
+        <span className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 text-slate-600 border border-slate-100 rounded-lg text-xs font-bold">
+          <Clock className="w-3 h-3" /> {s.duration}min
+        </span>
+        <span className="px-2.5 py-1 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-lg text-xs font-bold">
+          {s.plan} Plan
+        </span>
+      </div>
 
-      {/* Main Content */}
-      <div className={`pt-16 transition-all duration-300`}>
-        <div className="px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="max-w-7xl mx-auto">
-            
-            {/* Header */}
-            <div className="pt-11 mb-8">
-              <div className="bg-blue-600 text-white px-8 py-6 rounded-2xl flex items-center justify-between">
-                <h1 className="text-2xl font-bold tracking-wide">Sessions</h1>
-                <Calendar className="w-8 h-8" />
+      <div className="flex gap-2 mt-4 pt-4 border-t border-slate-50">
+        <button className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all">
+          <Video className="w-3.5 h-3.5" /> Join Call
+        </button>
+        <button className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all">
+          Reschedule
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Past Session Card ─────────────────────────────────────────────────────────
+const PastCard = ({ s }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="bg-white rounded-[2rem] border border-slate-100 shadow-lg shadow-slate-200/20 overflow-hidden hover:shadow-xl transition-all duration-300">
+      <div className="p-5">
+        {/* Header row */}
+        <div className="flex items-start gap-4">
+          <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${avColor(s.mentorName[0])} text-white font-bold text-sm flex items-center justify-center shadow-md flex-shrink-0`}>
+            {s.mentorName[0]}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base leading-tight">{s.sessionType}</h3>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">
+                  with <span className="text-blue-600 font-bold">{s.mentorName}</span> · {s.date}
+                </p>
+              </div>
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} className={`w-3.5 h-3.5 ${i < s.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
+                ))}
               </div>
             </div>
 
-            {apiLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-              </div>
-            ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              {/* Left Column - Your Session Notes */}
-              <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border">
-                <div className="p-4 sm:p-6 border-b border-gray-100">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center">
-                    📝 Your Session Notes
-                  </h2>
-                </div>
-                <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
-                  {displayNotes.length === 0 ? (
-                    <p className="text-sm text-gray-400">No session notes yet.</p>
-                  ) : displayNotes.map((note) => (
-                    <div key={note.id} className="flex items-start justify-between gap-3">
-                      <div className="flex items-start space-x-2 sm:space-x-3 flex-1 min-w-0">
-                        <div className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5 flex-shrink-0">
-                          <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-blue-600" />
-                        </div>
-                        <span className="text-xs sm:text-sm text-gray-700 leading-relaxed break-words">{note.text}</span>
-                      </div>
-                      <button className="text-blue-600 text-xs sm:text-sm font-medium hover:text-blue-800 whitespace-nowrap flex-shrink-0">
-                        {note.notes}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Right Column - Next Session Date */}
-              <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border">
-                <div className="p-4 sm:p-6 border-b border-gray-100">
-                  <h2 className="text-base sm:text-lg font-semibold text-gray-800 flex items-center">
-                    📅 Next Session Date
-                  </h2>
-                </div>
-                <div className="p-4 sm:p-6 space-y-3 sm:space-y-4">
-                  {displayUpcoming.length === 0 ? (
-                    <p className="text-sm text-gray-400">No upcoming sessions scheduled.</p>
-                  ) : displayUpcoming.map((session) => (
-                    <div key={session.id} className="flex items-center justify-between gap-3">
-                      <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-semibold flex-shrink-0">
-                          {session.avatar}
-                        </div>
-                        <span className="text-xs sm:text-sm text-gray-700 truncate">{session.title}</span>
-                      </div>
-                      <button className="text-blue-600 text-xs sm:text-sm font-medium hover:text-blue-800 whitespace-nowrap flex-shrink-0">
-                        {session.profile}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Tags + duration */}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <span className="flex items-center gap-1 px-2.5 py-1 bg-slate-50 border border-slate-100 text-slate-500 rounded-lg text-xs font-bold">
+                <Clock className="w-3 h-3" /> {s.duration}
+              </span>
+              {s.tags.map(tag => (
+                <span key={tag} className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${tagColor(tag)}`}>{tag}</span>
+              ))}
             </div>
+          </div>
+        </div>
 
-            )}
-            {/* Past Sessions */}
-            {!apiLoading && (
-            <div className="mt-6 sm:mt-8">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Past Sessions</h2>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                  <div className="flex items-center gap-2 sm:gap-4">
-                    <span className="text-xs sm:text-sm text-gray-500">Sort By:</span>
-                    <button className="bg-gray-800 text-white px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium">
-                      Recent
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs sm:text-sm text-gray-500 hidden sm:inline">Search Sessions</span>
-                    <div className="relative flex-1 sm:flex-none">
-                      <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 sm:w-4 sm:h-4" />
-                      <input
-                        type="text"
-                        placeholder="Search sessions..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full sm:w-48 pr-8 sm:pr-10 pl-3 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
-                      />
-                    </div>
-                  </div>
+        {/* Expand toggle */}
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center justify-center gap-1.5 mt-4 pt-4 border-t border-slate-50 text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors"
+        >
+          {open ? 'Hide details' : 'View notes & attachments'}
+          {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+
+      {/* Expanded details */}
+      {open && (
+        <div className="px-5 pb-5 space-y-5 border-t border-slate-50 pt-4 animate-in slide-in-from-top-2 duration-200">
+          {/* Notes */}
+          <div>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Session Notes</h4>
+            <div className="space-y-2">
+              {s.sessionNotes.map((note, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-slate-700 font-medium leading-relaxed">{note}</p>
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
 
-              {/* This Past Month Header */}
-              <div className="mb-3 sm:mb-4">
-                <h3 className="text-sm sm:text-base text-gray-600 font-medium">This Past Month</h3>
-              </div>
-
-              <div className="space-y-3 sm:space-y-4">
-                {displayPastFiltered.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-6 text-center">No past sessions yet.</p>
-                ) : displayPastFiltered.map((session) => (
-                  <div key={session.id} className="bg-white rounded-lg sm:rounded-xl shadow-sm border">
-                    {/* Session Header */}
-                    <div className="p-4 sm:p-6">
-                      <div className="flex items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3">
-                        <div className="flex items-start sm:items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
-                          <div>
-                            <h3 className="text-sm sm:text-base font-semibold text-gray-800">{session.date}</h3>
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 mt-1">
-                              <span className="text-blue-600 font-medium">{session.mentorName}</span>
-                              <span className="hidden sm:inline">•</span>
-                              <span>{session.sessionType}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
-                          <span className="text-xs sm:text-sm text-gray-500">{session.duration}</span>
-                          <button 
-                            onClick={() => toggleSessionExpansion(session.id)}
-                            className="text-gray-400 hover:text-gray-600 p-1"
-                          >
-                            {expandedSessions[session.id] ? (
-                              <ChevronUp className="w-4 h-4 sm:w-5 sm:h-5" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-                        {session.tags.map((tag, index) => (
-                          <span
-                            key={index}
-                            className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-medium border ${getTagColor(tag)}`}
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        <button className="w-5 h-5 sm:w-6 sm:h-6 border-2 border-dashed border-gray-300 rounded-full flex items-center justify-center text-gray-400 hover:border-gray-400">
-                          <Plus className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                        </button>
-                      </div>
-
-                      {/* Expanded Content */}
-                      {expandedSessions[session.id] && (
-                        <div className="space-y-4 sm:space-y-6 pt-3 sm:pt-4 border-t border-gray-100">
-                          {/* Session Notes */}
-                          <div>
-                            <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Session Notes</h4>
-                            <div className="space-y-2 sm:space-y-3">
-                              {session.sessionNotes.map((note, index) => (
-                                <p key={index} className="text-xs sm:text-sm text-gray-600 leading-relaxed pl-2 sm:pl-0">
-                                  • {note}
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Attachments */}
-                          <div>
-                            <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Attachments</h4>
-                            {session.attachments.map((attachment, index) => (
-                              <div key={index} className="flex items-center space-x-2">
-                                <FileText className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 flex-shrink-0" />
-                                <button className="text-blue-600 text-xs sm:text-sm font-medium hover:text-blue-800 underline break-all">
-                                  {attachment.name}
-                                </button>
-                                <Download className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" />
-                              </div>
-                            ))}
-                          </div>
-
-                          {/* Links to Activities */}
-                          <div>
-                            <h4 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Links to Activities</h4>
-                            <div className="grid grid-cols-1 gap-3 sm:gap-4">
-                              {session.attendees.map((attendee, index) => (
-                                <div key={index} className="flex items-start justify-between gap-3">
-                                  <div className="flex items-start space-x-2 sm:space-x-3 flex-1 min-w-0">
-                                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-600 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
-                                      {attendee.avatar}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{attendee.name}</p>
-                                      <p className="text-xs text-gray-600 mb-1 break-words">{attendee.task}</p>
-                                      <button className="text-blue-600 text-xs font-medium hover:text-blue-800 break-words">
-                                        {attendee.link}
-                                      </button>
-                                    </div>
-                                  </div>
-                                  <div className="text-right flex-shrink-0">
-                                    <p className="text-xs text-gray-600 whitespace-nowrap">{attendee.dueDate}</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
+          {/* Attachments */}
+          {s.attachments.length > 0 && (
+            <div>
+              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Attachments</h4>
+              <div className="space-y-2">
+                {s.attachments.map((a, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-xl hover:bg-blue-100 transition-colors cursor-pointer">
+                    <FileText className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                    <span className="text-sm font-bold text-blue-700 flex-1 truncate">{a.name}</span>
+                    <Download className="w-4 h-4 text-blue-400 flex-shrink-0" />
                   </div>
                 ))}
               </div>
             </div>
-            )}
-          </div>
+          )}
         </div>
-        
-        {/* Footer */}
-        <Footer />
+      )}
+    </div>
+  );
+};
+
+// ── Loading skeleton ──────────────────────────────────────────────────────────
+const Skeleton = () => (
+  <div className="animate-pulse space-y-4">
+    {[1, 2].map(i => (
+      <div key={i} className="bg-white rounded-[2rem] p-5 border border-slate-100 h-40" />
+    ))}
+  </div>
+);
+
+// ── Main Component ────────────────────────────────────────────────────────────
+const Sessions = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchTerm, setSearchTerm]   = useState('');
+  const [sortBy, setSortBy]           = useState('recent');
+  const [apiLoading, setApiLoading]   = useState(true);
+
+  const [upcoming, setUpcoming]       = useState([]);
+  const [past, setPast]               = useState([]);
+
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user?.$id) { setApiLoading(false); return; }
+    const fetch = async () => {
+      try {
+        const data = await getMenteeBookings(user.$id);
+        const docs = data.documents || [];
+        const now  = new Date();
+
+        setUpcoming(docs
+          .filter(d => new Date(d.sessionDate) > now && d.status !== 'cancelled')
+          .map(d => ({
+            id: d.$id,
+            mentorName: d.mentorName || 'Your Mentor',
+            mentorRole: d.mentorRole || '',
+            avatar: (d.mentorName || 'M')[0],
+            plan: d.plan || 'Basic',
+            date: d.sessionDate,
+            time: new Date(d.sessionDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            duration: d.duration || 60,
+            topic: d.notes || 'Mentorship session',
+          }))
+        );
+
+        setPast(docs
+          .filter(d => new Date(d.sessionDate) <= now || d.status === 'completed')
+          .map(d => ({
+            id: d.$id,
+            mentorName: d.mentorName || 'Mentor',
+            date: new Date(d.sessionDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+            sessionType: d.notes || 'Mentorship Session',
+            duration: `${d.duration || 60} min`,
+            tags: ['Session'],
+            sessionNotes: d.notes ? [d.notes] : [],
+            attachments: [],
+            rating: 5,
+          }))
+        );
+      } catch (err) {
+        console.error('[Sessions] fetch error:', err);
+      } finally {
+        setApiLoading(false);
+      }
+    };
+    fetch();
+  }, [user]);
+
+  // Use demo data if no real bookings
+  const displayUpcoming = upcoming.length > 0 ? upcoming : (!apiLoading ? DEMO_UPCOMING : []);
+  const displayPast     = past.length     > 0 ? past     : (!apiLoading ? DEMO_PAST     : []);
+
+  const filteredPast = useMemo(() => {
+    let list = displayPast.filter(s =>
+      !searchTerm ||
+      s.mentorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.sessionType.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.date.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    if (sortBy === 'recent') list = [...list].reverse();
+    return list;
+  }, [displayPast, searchTerm, sortBy]);
+
+  const totalMins  = displayPast.length * 55; // approx
+  const avgRating  = displayPast.length
+    ? (displayPast.reduce((s, p) => s + (p.rating || 5), 0) / displayPast.length).toFixed(1)
+    : '—';
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] relative overflow-x-hidden">
+      {/* Background */}
+      <div className="fixed top-0 left-0 w-full h-[800px] bg-gradient-to-b from-blue-50/50 via-indigo-50/30 to-transparent pointer-events-none z-0" />
+      <div className="fixed top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-indigo-100/40 blur-[120px] pointer-events-none z-0" />
+
+      <div className="relative z-10">
+        <Navigation />
+        <Sidenav sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} currentRoute="/dashboard/sessions" />
+
+        <button onClick={() => setSidebarOpen(true)}
+          className="fixed bottom-6 right-6 z-50 lg:hidden bg-blue-600 text-white p-4 rounded-full shadow-2xl shadow-blue-600/40 hover:scale-105 transition-transform">
+          <Filter className="w-6 h-6" />
+        </button>
+
+        <div className="pt-32 md:pt-24 px-4 sm:px-6 lg:px-8 lg:pl-28 max-w-[1600px] mx-auto pb-12">
+
+          {/* Header */}
+          <header className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8 animate-in slide-in-from-bottom-4 duration-500">
+            <div>
+              <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-2">Learning Journey</p>
+              <h1 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tight">
+                My <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Sessions</span>
+              </h1>
+            </div>
+          </header>
+
+          {apiLoading ? (
+            <Skeleton />
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 animate-in slide-in-from-bottom-8 duration-700">
+
+              {/* ── LEFT: Upcoming + Past ─────────────────────────────────── */}
+              <div className="lg:col-span-8 space-y-8">
+
+                {/* Upcoming Sessions */}
+                <section>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-slate-900 text-xl">Upcoming Sessions</h2>
+                      <p className="text-xs text-slate-400 font-medium">{displayUpcoming.length} scheduled</p>
+                    </div>
+                  </div>
+
+                  {displayUpcoming.length === 0 ? (
+                    <div className="bg-white rounded-[2.5rem] p-12 flex flex-col items-center text-center border border-dashed border-slate-200">
+                      <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center mb-3">
+                        <Calendar className="w-7 h-7 text-blue-400" />
+                      </div>
+                      <h3 className="font-bold text-slate-700 mb-1">No upcoming sessions</h3>
+                      <p className="text-slate-400 text-sm font-medium">Book a session with one of your mentors to get started.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {displayUpcoming.map(s => <UpcomingCard key={s.id} s={s} />)}
+                    </div>
+                  )}
+                </section>
+
+                {/* Past Sessions */}
+                <section>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-slate-50 rounded-xl text-slate-600">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h2 className="font-bold text-slate-900 text-xl">Past Sessions</h2>
+                        <p className="text-xs text-slate-400 font-medium">{displayPast.length} completed</p>
+                      </div>
+                    </div>
+
+                    {/* Search + Sort */}
+                    <div className="flex items-center gap-2">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search sessions…"
+                          value={searchTerm}
+                          onChange={e => setSearchTerm(e.target.value)}
+                          className="pl-8 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 w-44"
+                        />
+                      </div>
+                      <select
+                        value={sortBy}
+                        onChange={e => setSortBy(e.target.value)}
+                        className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="recent">Recent first</option>
+                        <option value="oldest">Oldest first</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {filteredPast.length === 0 ? (
+                    <div className="bg-white rounded-[2.5rem] p-10 text-center border border-dashed border-slate-200">
+                      <p className="text-slate-400 text-sm font-medium">No sessions match your search.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {filteredPast.map(s => <PastCard key={s.id} s={s} />)}
+                    </div>
+                  )}
+                </section>
+              </div>
+
+              {/* ── RIGHT: Stats Sidebar ──────────────────────────────────── */}
+              <div className="lg:col-span-4 space-y-5 animate-in slide-in-from-bottom-8 duration-700 delay-200">
+
+                {/* Summary stats */}
+                <div className="grid grid-cols-2 gap-4">
+                  <StatCard
+                    icon={<CheckCircle2 className="w-5 h-5" />}
+                    label="Completed" value={displayPast.length}
+                    sub="Total sessions"
+                    accent="bg-emerald-50 text-emerald-600"
+                  />
+                  <StatCard
+                    icon={<Calendar className="w-5 h-5" />}
+                    label="Upcoming" value={displayUpcoming.length}
+                    sub="Scheduled"
+                    accent="bg-blue-50 text-blue-600"
+                  />
+                  <StatCard
+                    icon={<Clock className="w-5 h-5" />}
+                    label="Hours Learnt" value={`${Math.round(totalMins / 60)}h`}
+                    sub="Total time"
+                    accent="bg-violet-50 text-violet-600"
+                  />
+                  <StatCard
+                    icon={<Star className="w-5 h-5" />}
+                    label="Avg Rating" value={avgRating}
+                    sub="Out of 5"
+                    accent="bg-amber-50 text-amber-600"
+                  />
+                </div>
+
+                {/* Hero payout-style dark card */}
+                <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[2.5rem] p-6 text-white shadow-2xl shadow-slate-900/30 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-8 -mt-8" />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="p-2 bg-white/10 rounded-xl"><Zap className="w-4 h-4" /></div>
+                      <span className="text-slate-400 text-sm font-bold">Learning Streak</span>
+                    </div>
+                    <p className="text-4xl font-bold mb-1">12 days</p>
+                    <p className="text-slate-400 text-xs font-medium mb-5">Keep it going — you're on fire! 🔥</p>
+                    <div className="flex gap-1">
+                      {[...Array(7)].map((_, i) => (
+                        <div key={i} className={`flex-1 h-2 rounded-full ${i < 5 ? 'bg-blue-500' : 'bg-white/10'}`} />
+                      ))}
+                    </div>
+                    <p className="text-slate-500 text-xs font-medium mt-2">5 / 7 days this week</p>
+                  </div>
+                </div>
+
+                {/* Recent notes preview */}
+                <div className="bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-lg shadow-slate-200/20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-slate-900 text-lg">Recent Notes</h3>
+                  </div>
+                  <div className="space-y-3">
+                    {displayPast.slice(0, 3).flatMap(s => s.sessionNotes.slice(0, 1)).map((note, i) => (
+                      <div key={i} className="flex items-start gap-2.5 p-3 bg-slate-50 rounded-2xl">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
+                        <p className="text-xs font-medium text-slate-600 leading-relaxed line-clamp-2">{note}</p>
+                      </div>
+                    ))}
+                    {displayPast.length === 0 && (
+                      <p className="text-slate-400 text-sm text-center py-4">No notes yet</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* CTA */}
+                <div className="bg-blue-600 rounded-[2.5rem] p-6 text-white shadow-xl shadow-blue-600/30 relative overflow-hidden">
+                  <div className="absolute -bottom-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-xl" />
+                  <div className="relative z-10">
+                    <ArrowUpRight className="w-6 h-6 text-blue-200 mb-3" />
+                    <h3 className="font-bold text-lg mb-1">Book Your Next Session</h3>
+                    <p className="text-blue-200 text-sm font-medium mb-4">Explore available mentors and schedule your next growth call.</p>
+                    <a href="/listing" className="block w-full py-3 bg-white text-blue-600 rounded-xl font-bold text-sm text-center hover:bg-blue-50 transition-colors">
+                      Browse Mentors →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      <Footer />
     </div>
   );
 };
