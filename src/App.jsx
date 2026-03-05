@@ -8,6 +8,7 @@ import Privacy from "./pages/Privacy";
 import FAQ from "./pages/Faq";
 import ModalRedirect from "./components/ModalRedirect";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ScrollToTop from "./components/ScrollToTop";
 
 import MentorOnboardingPage from "./pages/MentorOnboardingPage";
 import MenteeOnboardingPage from "./pages/MenteeOnboardingPage";
@@ -86,6 +87,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-white">
+      <ScrollToTop />
       {!shouldHideNavbar && <Navigation />}
       <Routes>
         <Route

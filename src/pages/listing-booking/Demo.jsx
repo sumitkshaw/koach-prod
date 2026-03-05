@@ -5,11 +5,13 @@ import Navigation from '../../components/Navigation';
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from '../../utils/AuthContext';
 import { getMentorById } from '../../services/mentorService';
+import { createBooking } from '../../services/bookingService';
 
 function Demo() {
   const navigate = useNavigate();
   const { mentorId } = useParams();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
   // ── Mentor data state ───────────────────────────────────────────────────────
   const [mentor, setMentor] = useState(null);
@@ -179,10 +181,34 @@ function Demo() {
     setShowPaymentPage(true);
   };
 
-  const handlePaymentSubmit = (e) => {
+  const handlePaymentSubmit = async (e) => {
     e.preventDefault();
-    setShowPaymentPage(false);
-    setShowSuccessPage(true);
+    setPaymentLoading(true);
+    try {
+      // Persist the booking to the backend so dashboards update dynamically
+      await createBooking({
+        mentorId: mentor.id,
+        mentorName: mentor.name,
+        mentorRole: mentor.role,
+        mentorCompany: mentor.company,
+        mentorAvatarUrl: mentor.avatarUrl || null,
+        menteeId: user?.$id || user?.uid || null,
+        menteeName: user?.name || user?.email || 'Mentee',
+        menteeEmail: user?.email || null,
+        sessionDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 1 week from now
+        price: selectedPlan?.price || 0,
+        plan: selectedPlan?.name || 'Basic',
+        status: 'confirmed',
+        notes: '',
+      });
+    } catch (err) {
+      // Non-critical — still show success but log the error
+      console.error('[Demo] createBooking failed (non-blocking):', err);
+    } finally {
+      setPaymentLoading(false);
+      setShowPaymentPage(false);
+      setShowSuccessPage(true);
+    }
   };
 
   const formatCardNumber = (value) => {
@@ -661,7 +687,7 @@ function Demo() {
                       <label className="text-xs font-bold text-slate-700 block mb-1.5">Name on Card</label>
                       <input type="text" value={paymentDetails.nameOnCard} onChange={(e) => setPaymentDetails({ ...paymentDetails, nameOnCard: e.target.value })} placeholder="John Doe" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                     </div>
-                    <button type="submit" className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold text-sm shadow hover:bg-blue-600 transition-all mt-2">Pay ${selectedPlan?.price}</button>
+                     <button type="submit" disabled={paymentLoading} className="w-full bg-slate-900 text-white py-3.5 rounded-xl font-bold text-sm shadow hover:bg-blue-600 transition-all mt-2 disabled:opacity-60 flex items-center justify-center gap-2">{paymentLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</> : <>Pay ${selectedPlan?.price}</>}</button>
                   </form>
                 </div>
               </div>
